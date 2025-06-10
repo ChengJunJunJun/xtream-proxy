@@ -206,7 +206,7 @@ class UserManager {
     }
 
     createTelegramUser(username, password, telegramUserId) {
-        const expiryTime = Date.now() + (this.config.playlist?.userLinkExpiry || 86400000); // 24小时后过期
+        const expiryTime = Date.now() + 86400000; // 固定24小时 (86400000毫秒)
         const user = this.createUser(username, password, {
             telegramUserId: telegramUserId,
             source: 'telegram',
@@ -221,6 +221,7 @@ class UserManager {
             expiryTime: expiryTime
         });
         
+        this.logger.info(`创建新Telegram用户 ${username}，过期时间: ${new Date(expiryTime).toLocaleString()}`);
         return user;
     }
 

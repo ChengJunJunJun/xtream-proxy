@@ -78,6 +78,11 @@ class TokenManager {
     }
     
     createToken(userId, username) {
+        // 检查黑名单
+        if (this.isUserBlacklisted(userId)) {
+            throw new Error('User is blacklisted');
+        }
+        
         // 检查生成限制
         if (!this.canGenerateToken(userId)) {
             throw new Error('Token generation limit exceeded');
@@ -214,6 +219,52 @@ class TokenManager {
         return revokedCount;
     }
     
+    isUserBlacklisted(userId) {
+        const blacklist = this.config.blacklist || [];
+        return blacklist.includes(userId.toString());
+    }
+
+    getLimitExceededUsers() {
+        const limitExceededUsers = [];
+        const now = Date.now();
+        const maxTokens = this.config.maxTokensPerUser || 2;
+
+        for (const [userId, limit] of this.tokenLimits.entries()) {
+            // 检查是否还在限制期内且达到最大数量
+            if (limit.resetTime > now && limit.count >= maxTokens) {
+                limitExceededUsers.push({
+                    userId: userId,
+                    count: limit.count,
+                    resetTime: limit.resetTime,
+                    firstGenerated: limit.firstGenerated
+                });
+            }
+        }
+
+        return limitExceededUsers;
+    }
+
+    resetUserLimit(userId) {
+        const userIdInt = parseInt(userId);
+        const limit = this.tokenLimits.get(userIdInt);
+        
+        if (limit) {
+            this.tokenLimits.delete(userIdInt);
+            this.saveData();
+            this.logger.info(`Reset token limit for user ${userId}`);
+            return true;
+        }
+        
+        return false;
+    }
+
+    clearUserLimit(userId) {
+        const userIdInt = parseInt(userId);
+        this.tokenLimits.delete(userIdInt);
+        this.saveData();
+        this.logger.info(`Cleared token limit for user ${userId}`);
+    }
+
     getStats() {
         return {
             activeTokens: this.tokens.size,

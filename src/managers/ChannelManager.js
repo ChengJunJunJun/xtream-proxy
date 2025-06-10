@@ -145,10 +145,26 @@ class ChannelManager {
             tvgName: ''
         };
         
-        // 提取频道名称
+        // 提取频道名称并清理其中的属性信息
         const nameMatch = line.match(/,(.+)$/);
         if (nameMatch) {
-            channel.name = nameMatch[1].trim();
+            let channelName = nameMatch[1].trim();
+            
+            // 清理频道名称中的属性信息
+            // 移除 tvg-* 属性
+            channelName = channelName.replace(/tvg-[a-zA-Z]+=["'][^"']*["']/g, '').trim();
+            // 移除 group-title 属性
+            channelName = channelName.replace(/group-title=["'][^"']*["']/g, '').trim();
+            // 移除开头的 -1 或其他数字标识
+            channelName = channelName.replace(/^-?\d+\s+/, '').trim();
+            // 移除多余的逗号、空格和特殊字符
+            channelName = channelName.replace(/^[,\s-]+|[,\s-]+$/g, '').trim();
+            // 如果名称为空或只是逗号，使用默认名称
+            if (!channelName || channelName === ',') {
+                channelName = `Channel ${Math.random().toString(36).substring(7)}`;
+            }
+            
+            channel.name = channelName;
         }
         
         // 提取属性
@@ -167,7 +183,9 @@ class ChannelManager {
             channel.logo = logoMatch[1];
         }
         
-        const categoryMatch = line.match(/group-title="([^"]*)"/);
+        // 修复：只取第一个group-title属性
+        // 使用非贪婪匹配，确保只获取第一个group-title
+        const categoryMatch = line.match(/group-title="([^"]*?)"/);
         if (categoryMatch) {
             channel.category = categoryMatch[1];
         }

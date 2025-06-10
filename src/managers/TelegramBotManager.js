@@ -476,6 +476,21 @@ class TelegramBotManager {
     
     async handleTextMessage(msg) {
         const chatId = msg.chat.id;
+        const text = msg.text.trim();
+        const userId = msg.from.id;
+        
+        // 检查是否为管理员的限制管理命令
+        if (this.isAdmin(userId)) {
+            if (text.startsWith('reset ')) {
+                const targetUserId = text.split(' ')[1];
+                await this.handleResetUserLimit(msg, targetUserId);
+                return;
+            } else if (text.startsWith('blacklist ')) {
+                const targetUserId = text.split(' ')[1];
+                await this.handleAddToBlacklist(msg, targetUserId);
+                return;
+            }
+        }
         
         // 检查是否是token验证（现在在私聊中处理）
         if (msg.text && msg.text.length === 8) {
@@ -1090,7 +1105,68 @@ class TelegramBotManager {
         }
     }
     
+    async handleResetUserLimit(msg, targetUserId) {
+        try {
+            if (!targetUserId) {
+                await this.bot.sendMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`reset 123456789`', { parse_mode: 'Markdown' });
+                return;
+            }
+
+            const success = this.tokenManager.resetUserLimit(targetUserId);
+            
+            if (success) {
+                await this.bot.sendMessage(msg.chat.id, `✅ *用户令牌限制已重置*
+
+👤 *用户ID*: \`${targetUserId}\`
+🔄 *操作*: 每日令牌生成限制已清除
+✨ *状态*: 用户现在可以重新生成令牌
+
+该用户现在可以：
+• 立即生成新的访问令牌
+• 正常使用机器人功能`, { parse_mode: 'Markdown' });
+
+                // 尝试通知被重置限制的用户
+                try {
+                    await this.bot.sendMessage(targetUserId, `✅ *您的令牌生成限制已被管理员重置*
+
+🔄 您现在可以重新生成访问令牌了
+
+请使用 /gettoken 命令生成新的令牌。`);
+                } catch (error) {
+                    this.logger.debug(`无法通知被重置限制的用户 ${targetUserId}:`, error.message);
+                }
+
+                this.logger.info(`管理员 ${msg.from.id} 重置了用户 ${targetUserId} 的令牌限制`);
+            } else {
+                await this.bot.sendMessage(msg.chat.id, `⚠️ 用户 \`${targetUserId}\` 没有达到令牌限制或不存在限制记录`, { parse_mode: 'Markdown' });
+            }
+        } catch (error) {
+            this.logger.error('重置用户限制失败:', error);
+            await this.bot.sendMessage(msg.chat.id, `❌ 重置用户限制失败：${error.message}`);
+        }
+    }
+
+    async handleAddToBlacklist(msg, targetUserId) {
+        try {
+            if (!targetUserId) {
+                await this.bot.sendMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`blacklist 123456789`', { parse_mode: 'Markdown' });
+                return;
+            }
+
+            await this.adminHandler.addToBlacklist(msg, this.bot, targetUserId);
+        } catch (error) {
+            this.logger.error('加入黑名单失败:', error);
+            await this.bot.sendMessage(msg.chat.id, `❌ 加入黑名单失败：${error.message}`);
+        }
+    }
+
     async gracefulShutdown() {
+        // 防止重复shutdown
+        if (this.isShuttingDown) {
+            this.logger.debug('Telegram bot is already shutting down, skipping...');
+            return;
+        }
+        
         this.isShuttingDown = true;
         
         try {
@@ -1100,7 +1176,7 @@ class TelegramBotManager {
             this.tokenManager.saveData();
             this.userValidator.saveData();
             
-            // 通知管理员机器人即将下线
+            // 通知管理员机器人即将下线 (只发送一次)
             if (this.bot) {
                 try {
                     await this.notifyAdmins('🔄 Xtream Codes Proxy bot is shutting down...');

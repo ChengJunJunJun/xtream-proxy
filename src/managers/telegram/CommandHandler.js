@@ -121,6 +121,12 @@ class CommandHandler {
 
 💡 如果您已有有效令牌，请直接使用
 🔄 请明天再试或联系管理员`;
+            } else if (error.message === 'User is blacklisted') {
+                errorMessage = `🚫 您已被加入黑名单
+
+❌ 您的账户已被管理员限制使用机器人的所有功能
+
+如有疑问，请联系管理员`;
             }
             
             await bot.sendMessage(msg.chat.id, errorMessage);
@@ -164,7 +170,7 @@ class CommandHandler {
             
             if (existingUsername) {
                 // 用户已存在，更新过期时间和重置通知状态
-                const newExpiryTime = Date.now() + (this.userManager.config.playlist?.userLinkExpiry || 86400000);
+                const newExpiryTime = Date.now() + 86400000; // 固定24小时 (86400000毫秒)
                 this.userManager.updateUser(existingUsername, {
                     expiryTime: newExpiryTime,
                     expiryNotified: false,
@@ -172,6 +178,8 @@ class CommandHandler {
                 });
                 username = existingUsername;
                 password = existingUsers[existingUsername].password;
+                
+                this.logger.info(`用户 ${userId} 重新验证，过期时间重置为: ${new Date(newExpiryTime).toLocaleString()}`);
             } else {
                 // 创建新用户
                 this.userManager.createTelegramUser(username, password, userId);

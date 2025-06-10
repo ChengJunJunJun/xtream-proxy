@@ -16,6 +16,7 @@ const streamRoutes = require('./routes/stream');
 class XtreamCodesProxy {
     constructor() {
         this.app = express();
+        this.isShuttingDown = false;
         
         // 初始化配置管理器
         this.configManager = new ConfigManager();
@@ -42,7 +43,7 @@ class XtreamCodesProxy {
         this.setupMiddleware();
         this.setupRoutes();
         this.initializeServices();
-        this.setupGracefulShutdown();
+        // 移除重复的信号监听，由index.js统一处理
     }
     
     setupMiddleware() {
@@ -90,6 +91,24 @@ class XtreamCodesProxy {
         this.app.get('/get.php', (req, res) => this.handleGetPlaylist(req, res));
         this.app.get('/xmltv.php', (req, res) => this.handleXMLTV(req, res));
         
+        // API路由
+        this.app.get('/api/categories', (req, res) => {
+            try {
+                const categories = this.channelManager.getCategories();
+                res.json({
+                    success: true,
+                    count: categories.length,
+                    categories: categories
+                });
+            } catch (error) {
+                this.logger.error('Error getting categories:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to get categories'
+                });
+            }
+        });
+
         // 健康检查
         this.app.get('/health', (req, res) => {
             res.json({
@@ -234,36 +253,7 @@ class XtreamCodesProxy {
         }
     }
     
-    setupGracefulShutdown() {
-        const gracefulShutdown = async (signal) => {
-            this.logger.info(`Received ${signal}, starting graceful shutdown...`);
-            
-            try {
-                // 停止接受新连接
-                if (this.server) {
-                    this.server.close();
-                }
-                
-                // 清理资源
-                if (this.telegramBot) {
-                    await this.telegramBot.gracefulShutdown();
-                }
-                
-                await this.userManager.gracefulShutdown();
-                await this.channelManager.gracefulShutdown();
-                
-                this.logger.info('✅ Graceful shutdown completed');
-                process.exit(0);
-            } catch (error) {
-                this.logger.error('❌ Error during graceful shutdown:', error);
-                process.exit(1);
-            }
-        };
-        
-        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-        process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
-    }
+
     
     start() {
         this.server = this.app.listen(this.port, this.config.server.host, () => {
@@ -286,6 +276,13 @@ class XtreamCodesProxy {
 
     // 添加公共的gracefulShutdown方法供外部调用
     async gracefulShutdown() {
+        // 防止重复shutdown
+        if (this.isShuttingDown) {
+            this.logger.debug('Application is already shutting down, skipping...');
+            return;
+        }
+        
+        this.isShuttingDown = true;
         this.logger.info('Starting graceful shutdown...');
         
         try {
