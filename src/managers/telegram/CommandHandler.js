@@ -42,31 +42,30 @@ class CommandHandler {
     }
     
     async handleHelp(msg, bot) {
-        const help = `🆘 Xtream Codes Proxy 完整帮助
+        const tokenExpiryMinutes = Math.floor((this.config.telegram?.tokenExpiry || 600000) / 60000);
+        const maxTokensPerUser = this.config.telegram?.maxTokensPerUser || 2;
+        
+        const help = `📖 *Xtream Codes Proxy 机器人使用指南*
 
-📱 *主要命令:*
-• /start - 开始使用机器人
-• /help - 显示此帮助信息
-• /gettoken - 获取临时访问令牌
-• /mycredentials - 查看我的登录凭据
-• /revoke - 撤销访问权限
+🚀 *主要功能:*
+获取IPTV播放列表访问令牌，支持多种播放器
 
-🔑 *获取访问权限流程:*
-1. 确保您已加入授权群组
-2. 私聊机器人使用 /gettoken 获取令牌
-3. 在私聊中直接发送令牌进行验证
-4. 验证成功后自动获得登录凭据
+🔧 *可用命令:*
+/start - 开始使用机器人
+/help - 显示此帮助信息
+/gettoken - 获取访问令牌
+/mycredentials - 查看当前登录凭据
 
-📺 *支持的播放器:*
-• IPTV Smarters Pro
-• TiviMate
-• VLC Media Player
+📱 *支持的播放器:*
 • Perfect Player
+• TiviMate
+• IPTV Smarters Pro
+• VLC Player
 • GSE Smart IPTV
 • 其他支持Xtream Codes的播放器
 
 🛡️ *安全特性:*
-• 令牌有时间限制（10分钟）
+• 令牌有时间限制（${tokenExpiryMinutes}分钟）
 • 每用户每天限制生成令牌数量
 • 自动检测群组成员身份
 • 离开群组自动撤销权限
@@ -113,14 +112,17 @@ class CommandHandler {
             let errorMessage = `❌ 令牌生成失败：${error.message}`;
             
             if (error.message === 'Token generation limit exceeded') {
+                const maxTokens = this.config.telegram?.maxTokensPerUser || 2;
+                const periodHours = Math.floor((this.config.telegram?.tokenGenerationPeriod || 86400000) / 3600000);
+                
                 errorMessage = `❌ 令牌生成失败：每日限制已达上限
 
 ⚠️ 限制说明：
-• 每天最多生成 2 个令牌
-• 24小时后自动重置
+• 每${periodHours}小时最多生成 ${maxTokens} 个令牌
+• ${periodHours}小时后自动重置
 
 💡 如果您已有有效令牌，请直接使用
-🔄 请明天再试或联系管理员`;
+🔄 请稍后再试或联系管理员`;
             } else if (error.message === 'User is blacklisted') {
                 errorMessage = `🚫 您已被加入黑名单
 

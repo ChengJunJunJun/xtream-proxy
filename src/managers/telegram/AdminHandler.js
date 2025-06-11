@@ -380,15 +380,28 @@ class AdminHandler {
             
             // 尝试获取用户信息
             try {
-                const groupId = (this.config.telegram && this.config.telegram.groupId) ? this.config.telegram.groupId : null;
-                if (groupId) {
-                    const chatMember = await bot.getChatMember(groupId, userId);
-                    if (chatMember.user.username) {
-                        message += `   *用户名*: @${chatMember.user.username}\n`;
+                const groupIds = this.getGroupIds();
+                let userFound = false;
+                
+                // 尝试从任何一个群组获取用户信息
+                for (const groupId of groupIds) {
+                    try {
+                        const chatMember = await bot.getChatMember(parseInt(groupId), userId);
+                        if (chatMember.user.username) {
+                            message += `   *用户名*: @${chatMember.user.username}\n`;
+                        }
+                        if (chatMember.user.first_name) {
+                            message += `   *姓名*: ${chatMember.user.first_name}\n`;
+                        }
+                        userFound = true;
+                        break; // 找到用户信息就停止
+                    } catch (error) {
+                        // 继续尝试其他群组
                     }
-                    if (chatMember.user.first_name) {
-                        message += `   *姓名*: ${chatMember.user.first_name}\n`;
-                    }
+                }
+                
+                if (!userFound) {
+                    message += `   *状态*: 无法获取用户信息\n`;
                 }
             } catch (error) {
                 message += `   *状态*: 无法获取用户信息\n`;
@@ -539,6 +552,32 @@ class AdminHandler {
         }
         
         return chunks;
+    }
+
+    // 获取群组ID列表 - 支持单个ID或多个ID
+    getGroupIds() {
+        const groupId = this.config.telegram?.groupId || this.config.groupId;
+        
+        if (!groupId) {
+            return [];
+        }
+        
+        // 如果是字符串且包含逗号，则按逗号分割
+        if (typeof groupId === 'string') {
+            if (groupId.includes(',')) {
+                return groupId.split(',').map(id => id.trim()).filter(id => id);
+            } else {
+                return [groupId.trim()];
+            }
+        }
+        
+        // 如果是数组，直接返回
+        if (Array.isArray(groupId)) {
+            return groupId.map(id => id.toString().trim()).filter(id => id);
+        }
+        
+        // 其他情况，转为字符串数组
+        return [groupId.toString().trim()];
     }
 }
 

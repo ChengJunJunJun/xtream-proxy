@@ -140,17 +140,65 @@ class TelegramBotManager {
         }
     }
 
+    // 获取群组ID列表 - 支持单个ID或多个ID
+    getGroupIds() {
+        if (!this.config.groupId) {
+            return [];
+        }
+        
+        // 如果是字符串且包含逗号，则按逗号分割
+        if (typeof this.config.groupId === 'string') {
+            if (this.config.groupId.includes(',')) {
+                return this.config.groupId.split(',').map(id => id.trim()).filter(id => id);
+            } else {
+                return [this.config.groupId.trim()];
+            }
+        }
+        
+        // 如果是数组，直接返回
+        if (Array.isArray(this.config.groupId)) {
+            return this.config.groupId.map(id => id.toString().trim()).filter(id => id);
+        }
+        
+        // 其他情况，转为字符串数组
+        return [this.config.groupId.toString().trim()];
+    }
+
+    // 检查聊天ID是否为授权群组
+    isAuthorizedGroup(chatId) {
+        const groupIds = this.getGroupIds();
+        return groupIds.includes(chatId.toString());
+    }
+
     async initializeGroupMembers() {
         try {
-            // 获取群组成员列表
-            const chatId = parseInt(this.config.groupId);
-            const administrators = await this.bot.getChatAdministrators(chatId);
+            this.groupMembers.clear(); // 清空现有成员列表
+            const groupIds = this.getGroupIds();
             
-            for (const admin of administrators) {
-                this.groupMembers.add(admin.user.id);
+            if (groupIds.length === 0) {
+                this.logger.warn('未配置群组ID，跳过群组成员初始化');
+                return;
             }
             
-            this.logger.info(`初始化群组成员: ${this.groupMembers.size} 个成员`);
+            let totalMembers = 0;
+            
+            for (const groupId of groupIds) {
+                try {
+                    // 获取群组管理员列表
+                    const administrators = await this.bot.getChatAdministrators(parseInt(groupId));
+                    
+                    for (const admin of administrators) {
+                        this.groupMembers.add(admin.user.id);
+                        totalMembers++;
+                    }
+                    
+                    this.logger.info(`群组 ${groupId}: 加载了 ${administrators.length} 个管理员`);
+                } catch (error) {
+                    this.logger.error(`初始化群组 ${groupId} 成员失败:`, error.message);
+                }
+            }
+            
+            this.logger.info(`初始化群组成员完成: ${totalMembers} 个成员，来自 ${groupIds.length} 个群组`);
         } catch (error) {
             this.logger.error('初始化群组成员失败:', error);
         }
@@ -326,7 +374,7 @@ class TelegramBotManager {
         const username = msg.from.username;
         const text = msg.text;
         const isPrivateChat = msg.chat.type === 'private';
-        const isGroupChat = chatId.toString() === this.config.groupId;
+        const isGroupChat = this.isAuthorizedGroup(chatId);
         
         this.logger.info(`收到消息 - ChatID: ${chatId}, UserID: ${userId}, Text: ${text}, Type: ${msg.chat.type}`);
         
@@ -675,21 +723,33 @@ class TelegramBotManager {
             return true;
         }
         
-        try {
-            const chatMember = await this.bot.getChatMember(this.config.groupId, userId);
-            const isActive = ['member', 'administrator', 'creator'].includes(chatMember.status);
-            
-            if (isActive) {
-                this.groupMembers.add(userId);
-            } else {
-                this.groupMembers.delete(userId);
-            }
-            
-            return isActive;
-        } catch (error) {
-            this.logger.error(`Error checking user ${userId} in group:`, error);
+        const groupIds = this.getGroupIds();
+        
+        if (groupIds.length === 0) {
+            this.logger.warn('未配置群组ID，跳过群组成员检查');
             return false;
         }
+        
+        // 检查用户是否在任何一个授权群组中
+        for (const groupId of groupIds) {
+            try {
+                const chatMember = await this.bot.getChatMember(parseInt(groupId), userId);
+                const isActive = ['member', 'administrator', 'creator'].includes(chatMember.status);
+                
+                if (isActive) {
+                    this.groupMembers.add(userId);
+                    this.logger.debug(`用户 ${userId} 在群组 ${groupId} 中找到`);
+                    return true;
+                }
+            } catch (error) {
+                this.logger.debug(`检查用户 ${userId} 在群组 ${groupId} 中失败:`, error.message);
+                // 继续检查其他群组
+            }
+        }
+        
+        // 用户不在任何群组中
+        this.groupMembers.delete(userId);
+        return false;
     }
     
     startAllTasks() {
@@ -707,9 +767,11 @@ class TelegramBotManager {
     }
     
     startMemberCheckTask() {
+        // 使用配置的token过期时间作为成员检查间隔，确保及时同步
+        const checkInterval = this.config.telegram?.tokenExpiry || 600000; // 默认10分钟
         setInterval(async () => {
             await this.initializeGroupMembers();
-        }, 600000); // 每10分钟同步一次群组成员
+        }, checkInterval); // 根据配置动态设置同步间隔
     }
     
     startDataSaveTask() {
@@ -1020,14 +1082,30 @@ class TelegramBotManager {
                 
                 // 尝试获取用户信息
                 try {
-                    const chatMember = await this.bot.getChatMember(this.config.groupId, adminId);
-                    if (chatMember.user.username) {
-                        adminInfo += ` (@${chatMember.user.username})`;
+                    const groupIds = this.getGroupIds();
+                    let userFound = false;
+                    
+                    // 尝试从任何一个群组获取用户信息
+                    for (const groupId of groupIds) {
+                        try {
+                            const chatMember = await this.bot.getChatMember(parseInt(groupId), adminId);
+                            if (chatMember.user.username) {
+                                adminInfo += ` (@${chatMember.user.username})`;
+                            }
+                            if (chatMember.user.first_name) {
+                                // 转义特殊字符以避免Markdown解析错误
+                                const firstName = chatMember.user.first_name.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+                                adminInfo += ` - ${firstName}`;
+                            }
+                            userFound = true;
+                            break; // 找到用户信息就停止
+                        } catch (error) {
+                            // 继续尝试其他群组
+                        }
                     }
-                    if (chatMember.user.first_name) {
-                        // 转义特殊字符以避免Markdown解析错误
-                        const firstName = chatMember.user.first_name.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-                        adminInfo += ` - ${firstName}`;
+                    
+                    if (!userFound) {
+                        throw new Error('用户信息未找到');
                     }
                 } catch (error) {
                     // 如果无法获取用户信息，只显示ID
