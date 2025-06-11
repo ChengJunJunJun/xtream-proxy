@@ -206,7 +206,8 @@ class UserManager {
     }
 
     createTelegramUser(username, password, telegramUserId) {
-        const expiryTime = Date.now() + 86400000; // 固定24小时 (86400000毫秒)
+        const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000; // 默认24小时
+        const expiryTime = Date.now() + userLinkExpiry;
         const user = this.createUser(username, password, {
             telegramUserId: telegramUserId,
             source: 'telegram',
@@ -241,8 +242,8 @@ class UserManager {
     checkHourlyRefreshLimit(username) {
         const now = Date.now();
         const userLimit = this.userHourlyLimits.get(username);
-        const maxHourlyRefresh = 10; // 每小时最多10次播放列表刷新
-        const limitPeriod = 60 * 60 * 1000; // 1小时
+        const maxHourlyRefresh = this.config.playlist?.maxRefreshesBeforeExpiry || 10; // 使用配置，默认10次
+        const limitPeriod = this.config.playlist?.refreshLimitPeriod || (60 * 60 * 1000); // 使用配置，默认1小时
         
         if (!userLimit) {
             this.userHourlyLimits.set(username, {
@@ -276,7 +277,7 @@ class UserManager {
 
     // 检查流并发限制 - 修复并发检查逻辑
     checkStreamConcurrency(username, channelId, clientIP) {
-        // 先清理不活跃的流（5分钟不活跃就清理）
+        // 先清理不活跃的流（使用配置的清理间隔）
         this.cleanupUserInactiveStreams(username);
         
         // 检查是否是同一设备访问同一频道（允许重复连接）
@@ -300,10 +301,11 @@ class UserManager {
             }
         }
         
-        console.log(`📊 ${username} 当前活跃设备数: ${userDevices.size}/3`);
+        const maxSimultaneousPlaylists = this.config.playlist?.maxSimultaneousPlaylists || 3; // 使用配置
+        console.log(`📊 ${username} 当前活跃设备数: ${userDevices.size}/${maxSimultaneousPlaylists}`);
         
-        // 检查用户总并发限制（最大3个设备同时播放）
-        if (userDevices.size >= 3 && !userDevices.has(clientIP)) {
+        // 检查用户总并发限制（使用配置的最大同时播放列表数）
+        if (userDevices.size >= maxSimultaneousPlaylists && !userDevices.has(clientIP)) {
             console.log(`⚠️  ${username} 设备并发限制超出: ${userDevices.size} 设备已在线`);
             this.showUserActiveStreams(username);
             return false;
@@ -319,7 +321,7 @@ class UserManager {
             lastActivity: Date.now()
         });
         
-        console.log(`✅ ${username} 新建流会话 ${channelId} from ${clientIP} (设备: ${userDevices.size + (userDevices.has(clientIP) ? 0 : 1)}/3)`);
+        console.log(`✅ ${username} 新建流会话 ${channelId} from ${clientIP} (设备: ${userDevices.size + (userDevices.has(clientIP) ? 0 : 1)}/${maxSimultaneousPlaylists})`);
         
         // 保持向后兼容的streamConnections结构（用于其他功能）
         const streamKey = `${username}:${channelId}`;
@@ -334,7 +336,7 @@ class UserManager {
     // 清理特定用户的不活跃流
     cleanupUserInactiveStreams(username) {
         const now = Date.now();
-        const inactiveThreshold = 5 * 60 * 1000; // 5分钟不活跃
+        const inactiveThreshold = this.config.playlist?.streamInactiveThreshold || (5 * 60 * 1000); // 使用配置的流不活跃阈值，默认5分钟
         let cleanedCount = 0;
         
         for (const [streamId, stream] of this.activeStreams.entries()) {
@@ -396,7 +398,9 @@ class UserManager {
             // 检查每小时播放列表刷新限制
             if (!this.checkHourlyRefreshLimit(username)) {
                 console.log(`⚠️  ${username} 超出每小时刷新限制`);
-                throw new Error('Hourly playlist refresh limit exceeded (10 times per hour)');
+                const maxRefreshes = this.config.playlist?.maxRefreshesBeforeExpiry || 10;
+                const limitPeriodHours = Math.floor((this.config.playlist?.refreshLimitPeriod || 3600000) / 3600000);
+                throw new Error(`Hourly playlist refresh limit exceeded (${maxRefreshes} times per ${limitPeriodHours} hour${limitPeriodHours > 1 ? 's' : ''})`);
             }
             
             // 生成播放列表逻辑
@@ -608,7 +612,7 @@ class UserManager {
         return {
             hourly: {
                 count: hourlyLimit?.count || 0,
-                max: 10,
+                max: this.config.playlist?.maxRefreshesBeforeExpiry || 10,
                 resetTime: hourlyLimit?.resetTime || 0
             },
             daily: {
@@ -734,7 +738,7 @@ class UserManager {
     // 清理不活跃的流
     cleanupInactiveStreams() {
         const now = Date.now();
-        const inactiveThreshold = 5 * 60 * 1000; // 5分钟不活跃
+        const inactiveThreshold = this.config.playlist?.streamInactiveThreshold || (5 * 60 * 1000); // 使用配置的流不活跃阈值，默认5分钟
         let cleanedCount = 0;
         
         for (const [streamId, stream] of this.activeStreams.entries()) {

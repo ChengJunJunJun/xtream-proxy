@@ -17,6 +17,10 @@ class XtreamCodesProxy {
     constructor() {
         this.app = express();
         this.isShuttingDown = false;
+        this.server = null; // 添加server引用
+        
+        // 单实例保护
+        this.instanceId = Date.now().toString(36) + Math.random().toString(36).substr(2);
         
         // 初始化配置管理器
         this.configManager = new ConfigManager();
@@ -82,10 +86,10 @@ class XtreamCodesProxy {
         // API路由
         this.app.use('/player_api.php', playerRoutes(this.userManager, this.channelManager, this.securityManager));
         this.app.use('/admin', adminRoutes(this.userManager, this.channelManager, this.config));
-        this.app.use('/live', streamRoutes(this.userManager, this.channelManager, this.securityManager));
+        this.app.use('/live', streamRoutes(this.userManager, this.channelManager, this.securityManager, this.config));
         
         // 添加stream路由的别名以保持兼容性
-        this.app.use('/stream', streamRoutes(this.userManager, this.channelManager, this.securityManager));
+        this.app.use('/stream', streamRoutes(this.userManager, this.channelManager, this.securityManager, this.config));
         
         // 兼容路由
         this.app.get('/get.php', (req, res) => this.handleGetPlaylist(req, res));
@@ -191,7 +195,7 @@ class XtreamCodesProxy {
                 
                 res.status(429).json({
                     error: 'Rate limit exceeded',
-                    message: 'Hourly playlist refresh limit exceeded (10 times per hour)'
+                    message: error.message
                 });
             } else if (error.message.includes('Authentication failed')) {
                 res.status(401).json({
@@ -221,7 +225,7 @@ class XtreamCodesProxy {
             if (user && user.telegramUserId && user.source === 'telegram') {
                 const message = `⚠️ 播放列表链接已失效
 
-🚫 您的播放列表刷新次数已达到每小时限制（10次/小时）
+🚫 您的播放列表刷新次数已达到限制
 
 📝 解决方案：
 • 使用 /gettoken 生成新的令牌
@@ -255,23 +259,33 @@ class XtreamCodesProxy {
     
 
     
-    start() {
-        this.server = this.app.listen(this.port, this.config.server.host, () => {
-            console.log(`🚀 Xtream Codes Proxy Server running on http://${this.config.server.host}:${this.port}`);
-            console.log(`📋 Available endpoints:`);
-            console.log(`   - Playlist: http://${this.config.server.host}:${this.port}/get.php?username=USER&password=PASS&type=m3u_plus`);
-            console.log(`   - Player API: http://${this.config.server.host}:${this.port}/player_api.php`);
-            console.log(`   - Live Stream: http://${this.config.server.host}:${this.port}/live/encrypted/TOKEN`);
-            console.log(`   - Health Check: http://${this.config.server.host}:${this.port}/health`);
-            this.logger.info(`🚀 Xtream Codes Proxy Server running on http://${this.config.server.host}:${this.port}`);
+    async start() {
+        // 检查端口是否已被占用
+        return new Promise((resolve, reject) => {
+            const testServer = this.app.listen(this.port, this.config.server.host, () => {
+                this.server = testServer;
+                console.log(`🚀 Xtream Codes Proxy Server (${this.instanceId}) running on http://${this.config.server.host}:${this.port}`);
+                console.log(`📋 Available endpoints:`);
+                console.log(`   - Playlist: http://${this.config.server.host}:${this.port}/get.php?username=USER&password=PASS&type=m3u_plus`);
+                console.log(`   - Player API: http://${this.config.server.host}:${this.port}/player_api.php`);
+                console.log(`   - Live Stream: http://${this.config.server.host}:${this.port}/live/encrypted/TOKEN`);
+                console.log(`   - Health Check: http://${this.config.server.host}:${this.port}/health`);
+                this.logger.info(`🚀 Xtream Codes Proxy Server (${this.instanceId}) running on http://${this.config.server.host}:${this.port}`);
+                resolve(this.server);
+            });
+            
+            testServer.on('error', (error) => {
+                if (error.code === 'EADDRINUSE') {
+                    console.error(`❌ Port ${this.port} is already in use. Another instance may be running.`);
+                    this.logger.error(`Port ${this.port} is already in use. Shutting down this instance.`);
+                    reject(new Error(`Port ${this.port} is already in use`));
+                } else {
+                    console.error('❌ Server error:', error);
+                    this.logger.error('Server error:', error);
+                    reject(error);
+                }
+            });
         });
-        
-        this.server.on('error', (error) => {
-            console.error('❌ Server error:', error);
-            this.logger.error('Server error:', error);
-        });
-        
-        return this.server;
     }
 
     // 添加公共的gracefulShutdown方法供外部调用

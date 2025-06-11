@@ -77,7 +77,11 @@ class ConfigManager {
                 defaultLinkExpiry: 31536000000,
                 enablePersistentStorage: true,
                 persistentStorageCleanupInterval: 86400000,
-                enablePermanentUsers: false
+                enablePermanentUsers: false,
+                userLinkExpiry: 86400000,
+                expiryNotificationHours: [24, 12, 1],
+                streamInactiveThreshold: 300000,
+                maxHourlyRefreshLimit: 10
             }
         };
     }

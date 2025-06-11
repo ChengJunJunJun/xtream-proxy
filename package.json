@@ -4,8 +4,11 @@
   "description": "将M3U服务器转换为Xtream Codes格式的代理服务器，支持用户认证和并发限制",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node start.js",
+    "stop": "node stop.js",
+    "restart": "npm run stop && npm run start",
     "dev": "nodemon index.js",
+    "direct": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "install-pm2": "npm install -g pm2",
     "start-pm2": "pm2 start index.js --name xtream-proxy",

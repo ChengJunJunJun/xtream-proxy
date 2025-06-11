@@ -8,16 +8,20 @@ class TelegramBotManager {
     constructor(config, userManager, logger) {
         this.config = config.telegram;
         this.serverConfig = config.server;
+        this.fullConfig = config; // 保存完整配置
         this.userManager = userManager;
         this.logger = logger;
         
         this.bot = null;
         this.isShuttingDown = false;
+        this.isInitializing = false;
+        this.initializeAttempts = 0;
+        this.maxInitializeAttempts = 5;
         
         // 初始化子管理器
         this.tokenManager = new TokenManager(this.config, this.logger);
         this.userValidator = new UserValidator(this.config, this.logger);
-        this.commandHandler = new CommandHandler(this.config, this.userManager, this.logger, this.serverConfig);
+        this.commandHandler = new CommandHandler(this.fullConfig, this.userManager, this.logger, this.serverConfig); // 传递完整配置
         this.adminHandler = new AdminHandler(this.config, this.userManager, this.logger);
         
         // 群组成员管理
@@ -29,6 +33,27 @@ class TelegramBotManager {
     }
     
     async initializeBot() {
+        // 防止重复初始化
+        if (this.isInitializing) {
+            this.logger.debug('Bot initialization already in progress, skipping...');
+            return;
+        }
+        
+        // 检查是否已关闭
+        if (this.isShuttingDown) {
+            this.logger.debug('Bot is shutting down, skipping initialization...');
+            return;
+        }
+        
+        // 检查重试次数
+        this.initializeAttempts++;
+        if (this.initializeAttempts > this.maxInitializeAttempts) {
+            this.logger.error(`Max initialization attempts (${this.maxInitializeAttempts}) reached. Stopping retries.`);
+            return;
+        }
+        
+        this.isInitializing = true;
+        
         try {
             // 如果已经有机器人实例在运行，先停止它
             if (this.bot) {
@@ -42,8 +67,8 @@ class TelegramBotManager {
 
             this.bot = new TelegramBot(this.config.botToken, { 
                 polling: {
-                    interval: 1000,  // 增加轮询间隔
-                    autoStart: false, // 手动启动轮询
+                    interval: 1000,
+                    autoStart: false,
                     params: {
                         timeout: 10,
                         allowed_updates: ['message', 'chat_member', 'my_chat_member']
@@ -77,6 +102,9 @@ class TelegramBotManager {
             console.log('✅ Telegram机器人已成功启动并连接');
             this.logger.info('✅ Telegram bot initialized successfully');
             
+            // 成功初始化后重置重试计数
+            this.initializeAttempts = 0;
+            
             // 通知管理员机器人已启动
             await this.notifyAdmins('🤖 Xtream Codes Proxy bot is now online!');
             
@@ -84,21 +112,31 @@ class TelegramBotManager {
             console.log('❌ Telegram机器人初始化失败:', error.message);
             this.logger.error('❌ Failed to initialize Telegram bot:', error.message);
             
-            // 如果是409冲突错误，等待更长时间后重试
-            if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
-                console.log('⏳ 检测到机器人冲突，30秒后重试...');
-                this.logger.info('⏳ 等待30秒后重试初始化机器人...');
+            // 如果是409冲突错误且未达到最大重试次数，等待后重试
+            if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409 && 
+                this.initializeAttempts < this.maxInitializeAttempts) {
+                console.log(`⏳ 检测到机器人冲突，30秒后重试... (${this.initializeAttempts}/${this.maxInitializeAttempts})`);
+                this.logger.info(`⏳ 等待30秒后重试初始化机器人... (${this.initializeAttempts}/${this.maxInitializeAttempts})`);
                 setTimeout(() => {
+                    this.isInitializing = false;
                     this.initializeBot();
                 }, 30000);
-            } else {
+                return; // 不要在这里设置 isInitializing = false
+            } else if (this.initializeAttempts < this.maxInitializeAttempts) {
                 // 其他错误，等待5秒后重试
-                console.log('⏳ 5秒后重试初始化机器人...');
-                this.logger.info('⏳ 等待5秒后重试初始化机器人...');
+                console.log(`⏳ 5秒后重试初始化机器人... (${this.initializeAttempts}/${this.maxInitializeAttempts})`);
+                this.logger.info(`⏳ 等待5秒后重试初始化机器人... (${this.initializeAttempts}/${this.maxInitializeAttempts})`);
                 setTimeout(() => {
+                    this.isInitializing = false;
                     this.initializeBot();
                 }, 5000);
+                return; // 不要在这里设置 isInitializing = false
+            } else {
+                console.log(`❌ 已达到最大重试次数 (${this.maxInitializeAttempts})，停止重试`);
+                this.logger.error(`Max initialization attempts reached. Bot initialization failed.`);
             }
+        } finally {
+            this.isInitializing = false;
         }
     }
 
@@ -204,20 +242,27 @@ class TelegramBotManager {
         
         // 改进的错误处理
         this.bot.on('polling_error', (error) => {
+            // 如果正在关闭或初始化中，忽略错误
+            if (this.isShuttingDown || this.isInitializing) {
+                return;
+            }
+            
             // 根据错误类型显示不同的终端提示
             if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
                 console.log('⚠️  检测到Telegram机器人冲突，正在重启...');
                 this.logger.warn('⚠️  检测到机器人冲突，停止轮询并等待重启...');
                 
-                // 停止轮询
+                // 停止轮询，但不立即重新初始化
                 this.bot.stopPolling().then(() => {
                     console.log('🔄 机器人轮询已停止，30秒后自动重启');
                     this.logger.info('✅ 轮询已停止，等待30秒后重新初始化...');
                     
                     // 等待30秒后重新初始化
                     setTimeout(() => {
-                        console.log('🚀 正在重新初始化Telegram机器人...');
-                        this.initializeBot();
+                        if (!this.isShuttingDown && !this.isInitializing) {
+                            console.log('🚀 正在重新初始化Telegram机器人...');
+                            this.initializeBot();
+                        }
                     }, 30000);
                 }).catch(stopError => {
                     console.log('❌ 停止机器人轮询时出错:', stopError.message);
@@ -227,12 +272,12 @@ class TelegramBotManager {
                 return;
             }
             
-            // 如果是网络错误，尝试重启轮询
+            // 如果是网络错误，尝试重启轮询（但不重新初始化）
             if (error.code === 'EFATAL' || error.code === 'EPARSE' || error.code === 'ENOTFOUND') {
                 console.log('🌐 网络连接问题，5秒后自动重试...');
                 this.logger.info('⏳ 网络错误，5秒后尝试重启轮询...');
                 setTimeout(() => {
-                    if (this.bot && !this.isShuttingDown) {
+                    if (this.bot && !this.isShuttingDown && !this.isInitializing) {
                         this.bot.startPolling().catch(restartError => {
                             console.log('❌ 重启机器人轮询失败:', restartError.message);
                             this.logger.error('重启轮询失败:', restartError.message);
@@ -757,6 +802,9 @@ class TelegramBotManager {
 
     async sendExpiryNotification(telegramUserId, username, hoursLeft) {
         try {
+            const userLinkExpiry = this.fullConfig.playlist?.userLinkExpiry || 86400000;
+            const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000));
+            
             const message = `⏰ 链接即将过期提醒
 
 🔗 您的IPTV访问链接将在 ${hoursLeft} 小时后过期
@@ -765,7 +813,7 @@ class TelegramBotManager {
 
 🔄 续期方法：
 • 使用 /gettoken 命令重新获取新的访问令牌
-• 验证令牌后将获得新的24小时访问权限
+• 验证令牌后将获得新的${hoursValidity}小时访问权限
 
 💡 建议您提前续期以避免服务中断。`;
 
@@ -778,6 +826,9 @@ class TelegramBotManager {
 
     async handleUserExpiry(telegramUserId, username) {
         try {
+            const userLinkExpiry = this.fullConfig.playlist?.userLinkExpiry || 86400000;
+            const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000));
+            
             const message = `❌ 访问链接已过期
 
 🔗 您的IPTV访问链接已于 ${new Date().toLocaleString()} 过期
@@ -785,9 +836,9 @@ class TelegramBotManager {
 🔄 重新获取访问权限：
 1. 使用 /gettoken 命令获取新的访问令牌
 2. 在私聊中发送令牌进行验证
-3. 验证成功后获得新的24小时访问权限
+3. 验证成功后获得新的${hoursValidity}小时访问权限
 
-💡 每次验证后都会获得新的24小时访问期限。`;
+💡 每次验证后都会获得新的${hoursValidity}小时访问期限。`;
 
             await this.bot.sendMessage(telegramUserId, message);
             this.logger.info(`用户 ${username} (${telegramUserId}) 访问权限已过期`);

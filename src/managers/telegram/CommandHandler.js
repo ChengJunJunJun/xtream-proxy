@@ -170,7 +170,8 @@ class CommandHandler {
             
             if (existingUsername) {
                 // 用户已存在，更新过期时间和重置通知状态
-                const newExpiryTime = Date.now() + 86400000; // 固定24小时 (86400000毫秒)
+                const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000; // 从配置读取，默认24小时
+                const newExpiryTime = Date.now() + userLinkExpiry;
                 this.userManager.updateUser(existingUsername, {
                     expiryTime: newExpiryTime,
                     expiryNotified: false,
@@ -193,6 +194,8 @@ class CommandHandler {
             // 计算过期时间
             const user = this.userManager.getUsers()[username];
             const expiryTime = new Date(user.expiryTime);
+            const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000;
+            const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000)); // 转换为小时
             
             // 只发送M3U Plus播放列表链接
             const message = `🎉 令牌验证成功！您的登录凭据：
@@ -201,12 +204,12 @@ class CommandHandler {
 
 \`${serverUrl}/get.php?username=${username}&password=${password}&type=m3u_plus\`
 
-⏰ 链接有效期：24小时
+⏰ 链接有效期：${hoursValidity}小时
 📅 过期时间：${expiryTime.toLocaleString()}
 
 💡 提示：
 • 复制上述链接到您的IPTV播放器
-• 链接在24小时后自动失效
+• 链接在${hoursValidity}小时后自动失效
 • 过期前机器人会自动提醒您
 • 需要续期时请重新获取token`;
             
@@ -254,12 +257,15 @@ class CommandHandler {
         
         // 检查用户是否过期
         if (userCredentials.expiryTime && Date.now() > userCredentials.expiryTime) {
+            const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000;
+            const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000));
+            
             await bot.sendMessage(msg.chat.id, `❌ 您的访问权限已过期
 
 🔄 重新获取访问权限：
 1. 使用 /gettoken 命令获取新的访问令牌
 2. 在私聊中发送令牌进行验证
-3. 验证成功后获得新的24小时访问权限`);
+3. 验证成功后获得新的${hoursValidity}小时访问权限`);
             return;
         }
         

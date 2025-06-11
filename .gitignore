@@ -8,3 +8,7 @@ Dockerfile
 config.json.example
 doc/
 test/
+
+# Process management files
+.server.pid
+.server.lock

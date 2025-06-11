@@ -4,7 +4,7 @@ const axios = require('axios');
 
 
 
-module.exports = (userManager, channelManager, securityManager) => {
+module.exports = (userManager, channelManager, securityManager, config) => {
     
     // 处理直播流请求
     router.get('/:username/:password/:streamId', async (req, res) => {
@@ -23,10 +23,11 @@ module.exports = (userManager, channelManager, securityManager) => {
             // 检查并发限制
             const streamSessionId = userManager.checkStreamConcurrency(username, streamId, clientIP);
             if (!streamSessionId) {
-                console.log(`⚠️  Concurrent stream limit exceeded for ${username} (3 devices total)`);
+                const maxDevices = config.playlist?.maxSimultaneousPlaylists || 3;
+                console.log(`⚠️  Concurrent stream limit exceeded for ${username} (${maxDevices} devices total)`);
                 return res.status(429).json({
                     error: 'Concurrent stream limit exceeded',
-                    message: 'Maximum 3 devices can stream simultaneously per user'
+                    message: `Maximum ${maxDevices} devices can stream simultaneously per user`
                 });
             }
             
@@ -71,10 +72,11 @@ module.exports = (userManager, channelManager, securityManager) => {
             // 检查并发限制
             const streamSessionId = userManager.checkStreamConcurrency(username, payload.channelId, clientIP);
             if (!streamSessionId) {
-                console.log(`⚠️  ${username} 并发限制超出 from ${clientIP} (3 devices total)`);
+                const maxDevices = config.playlist?.maxSimultaneousPlaylists || 3;
+                console.log(`⚠️  ${username} 并发限制超出 from ${clientIP} (${maxDevices} devices total)`);
                 return res.status(429).json({
                     error: 'Concurrent stream limit exceeded', 
-                    message: 'Maximum 3 devices can stream simultaneously per user'
+                    message: `Maximum ${maxDevices} devices can stream simultaneously per user`
                 });
             }
             
