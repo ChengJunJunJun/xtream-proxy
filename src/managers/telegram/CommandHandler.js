@@ -17,7 +17,7 @@ class CommandHandler {
         return `http://${host}:${this.serverConfig.port}`;
     }
     
-    async handleStart(msg, bot) {
+    async handleStart(msg, telegramBotManager) {
         const welcome = `🎬 欢迎使用 Xtream Codes Proxy 机器人！
 
 ✨ *功能介绍:*
@@ -38,10 +38,10 @@ class CommandHandler {
 🔒 *隐私保护:*
 所有操作均在私聊中进行，确保您的信息安全。`;
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleHelp(msg, bot) {
+    async handleHelp(msg, telegramBotManager) {
         const tokenExpiryMinutes = Math.floor((this.config.telegram?.tokenExpiry || 600000) / 60000);
         const maxTokensPerUser = this.config.telegram?.maxTokensPerUser || 2;
         
@@ -78,10 +78,10 @@ class CommandHandler {
 
 ❓ 如有疑问，请联系群组管理员。`;
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleGetToken(msg, bot, tokenManager) {
+    async handleGetToken(msg, telegramBotManager, tokenManager) {
         try {
             const userId = msg.from.id;
             const username = msg.from.username || msg.from.first_name;
@@ -106,7 +106,7 @@ class CommandHandler {
 • 令牌验证后将自动失效
 • 如令牌过期，请重新生成`;
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
             
         } catch (error) {
             let errorMessage = `❌ 令牌生成失败：${error.message}`;
@@ -131,11 +131,11 @@ class CommandHandler {
 如有疑问，请联系管理员`;
             }
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, errorMessage, {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, errorMessage, {}, msg);
         }
     }
     
-    async handleTokenVerification(msg, bot, tokenManager) {
+    async handleTokenVerification(msg, telegramBotManager, tokenManager) {
         const token = msg.text.trim();
         const userId = msg.from.id;
         
@@ -143,7 +143,7 @@ class CommandHandler {
         
         const tokenData = tokenManager.verifyToken(token, userId);
         if (!tokenData) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 令牌验证失败
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 令牌验证失败
 
 可能的原因：
 • 令牌已过期
@@ -215,19 +215,19 @@ class CommandHandler {
 • 过期前机器人会自动提醒您
 • 需要续期时请重新获取token`;
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
             
             this.logger.info(`用户 ${userId} 验证成功，创建凭据: ${username}`);
             
         } catch (error) {
             this.logger.error(`创建用户失败:`, error);
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 创建用户失败：${error.message}
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 创建用户失败：${error.message}
 
 请稍后重试或联系管理员。`, {}, msg);
         }
     }
     
-    async handleMyCredentials(msg, bot) {
+    async handleMyCredentials(msg, telegramBotManager) {
         const userId = msg.from.id;
         
         // 查找用户的Telegram用户名
@@ -244,7 +244,7 @@ class CommandHandler {
         }
         
         if (!userCredentials) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 您还没有登录凭据
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 您还没有登录凭据
 
 🔧 获取凭据流程：
 1. 使用 /gettoken 命令获取令牌
@@ -262,7 +262,7 @@ class CommandHandler {
             const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000;
             const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000));
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 您的访问权限已过期
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 您的访问权限已过期
 
 🔄 重新获取访问权限：
 1. 使用 /gettoken 命令获取新的访问令牌
@@ -295,10 +295,10 @@ class CommandHandler {
 💡 提示：复制上述链接到您的IPTV播放器`;
         }
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleStatus(msg, bot) {
+    async handleStatus(msg, telegramBotManager) {
         const uptime = process.uptime();
         const hours = Math.floor(uptime / 3600);
         const minutes = Math.floor((uptime % 3600) / 60);
@@ -327,17 +327,17 @@ class CommandHandler {
 
 🔄 最后更新: ${new Date().toLocaleString()}`;
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, status, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, status, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleRefresh(msg, bot) {
+    async handleRefresh(msg, telegramBotManager) {
         const userId = msg.from.id;
         const isAdmin = this.isAdmin(userId);
         
         // 管理员和普通用户都可以使用，但显示不同的消息
         const userType = isAdmin ? '管理员' : '用户';
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, `🔄 ${userType}操作：正在刷新频道列表...
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `🔄 ${userType}操作：正在刷新频道列表...
 
 请稍候，这可能需要几秒钟时间。`, {}, msg);
         
@@ -364,20 +364,20 @@ class CommandHandler {
 
 📋 使用 /mycredentials 获取您的播放列表链接`;
                 
-                await bot.sendAutoDeleteMessage(msg.chat.id, message, {}, msg);
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, {}, msg);
             } else {
-                await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 频道管理器不可用
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 频道管理器不可用
 
 请联系管理员检查服务器状态。`, {}, msg);
             }
         } catch (error) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 刷新操作失败：${error.message}
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 刷新操作失败：${error.message}
 
 请稍后重试或联系管理员。`, {}, msg);
         }
     }
     
-    async handleRevoke(msg, bot, args) {
+    async handleRevoke(msg, telegramBotManager, args) {
         const userId = msg.from.id;
         
         // 查找并删除用户的所有凭据
@@ -395,7 +395,7 @@ class CommandHandler {
         }
         
         if (deletedCount > 0) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `✅ 访问权限撤销成功
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ 访问权限撤销成功
 
 🗑️ 已删除的账户: ${deletedCount} 个
 📝 删除的用户名: ${deletedUsernames.join(', ')}
@@ -407,7 +407,7 @@ class CommandHandler {
 
 🔒 权限撤销操作已完成。`, {}, msg);
         } else {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 未找到您的用户信息
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 未找到您的用户信息
 
 可能的原因：
 • 您还未获取过访问权限

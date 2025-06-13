@@ -5,9 +5,9 @@ class AdminHandler {
         this.logger = logger;
     }
     
-    async handleAdminCommand(msg, bot, args) {
+    async handleAdminCommand(msg, telegramBotManager, args) {
         if (args.length === 0) {
-            await this.showAdminHelp(msg, bot);
+            await this.showAdminHelp(msg, telegramBotManager);
             return;
         }
         
@@ -15,29 +15,29 @@ class AdminHandler {
         
         switch (subCommand) {
             case 'stats':
-                await this.handleStats(msg, bot);
+                await this.handleStats(msg, telegramBotManager);
                 break;
             case 'users':
-                await this.handleUsersList(msg, bot);
+                await this.handleUsersList(msg, telegramBotManager);
                 break;
             case 'cleanup':
-                await this.handleCleanup(msg, bot);
+                await this.handleCleanup(msg, telegramBotManager);
                 break;
             case 'changem3u':
-                await this.handleChangeM3U(msg, bot, args.slice(1));
+                await this.handleChangeM3U(msg, telegramBotManager, args.slice(1));
                 break;
             case 'limitexceeded':
-                await this.handleLimitExceeded(msg, bot, args.slice(1));
+                await this.handleLimitExceeded(msg, telegramBotManager, args.slice(1));
                 break;
             case 'blacklist':
-                await this.handleBlacklist(msg, bot, args.slice(1));
+                await this.handleBlacklist(msg, telegramBotManager, args.slice(1));
                 break;
             default:
-                await this.showAdminHelp(msg, bot);
+                await this.showAdminHelp(msg, telegramBotManager);
         }
     }
     
-    async showAdminHelp(msg, bot) {
+    async showAdminHelp(msg, telegramBotManager) {
         const help = `🔧 管理员命令帮助：
 
 • /admin stats - 查看系统统计
@@ -53,10 +53,10 @@ class AdminHandler {
 • /admin blacklist list
 • /changem3u https://example.com/playlist.m3u`;
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleStats(msg, bot) {
+    async handleStats(msg, telegramBotManager) {
         const users = this.userManager.getUsers();
         const activeUsers = Object.values(users).filter(user => user.enabled).length;
         const telegramUsers = Object.values(users).filter(user => user.source === 'telegram').length;
@@ -75,14 +75,14 @@ class AdminHandler {
 
 ✅ 系统运行正常`;
         
-        await bot.sendAutoDeleteMessage(msg.chat.id, stats, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, stats, { parse_mode: 'Markdown' }, msg);
     }
     
-    async handleUsersList(msg, bot) {
+    async handleUsersList(msg, telegramBotManager) {
         const users = this.userManager.getUsers();
         
         if (Object.keys(users).length === 0) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, '�� 当前没有用户', {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '当前没有用户', {}, msg);
             return;
         }
         
@@ -101,33 +101,33 @@ class AdminHandler {
         if (message.length > 4000) {
             const chunks = this.splitMessage(message, 4000);
             for (const chunk of chunks) {
-                await bot.sendAutoDeleteMessage(msg.chat.id, chunk, { parse_mode: 'Markdown' }, msg);
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, chunk, { parse_mode: 'Markdown' }, msg);
             }
         } else {
-            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
         }
     }
     
-    async handleCleanup(msg, bot) {
-        await bot.sendAutoDeleteMessage(msg.chat.id, '🧹 正在清理过期数据...', {}, msg);
+    async handleCleanup(msg, telegramBotManager) {
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '🧹 正在清理过期数据...', {}, msg);
         
         try {
             // 这里可以调用各种清理方法
             this.userManager.cleanup();
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, '✅ 数据清理完成', {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '✅ 数据清理完成', {}, msg);
         } catch (error) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 清理失败：${error.message}`, {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 清理失败：${error.message}`, {}, msg);
         }
     }
     
-    async handleChangeM3U(msg, bot, args) {
+    async handleChangeM3U(msg, telegramBotManager, args) {
         if (args.length === 0) {
             const currentUrl = this.config.originalServer?.url || '未设置';
             const channelCount = this.userManager.channelManager ? 
                 this.userManager.channelManager.getChannelCount() : 0;
             
-            await bot.sendAutoDeleteMessage(msg.chat.id, `📺 *当前M3U订阅链接管理：*
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `📺 *当前M3U订阅链接管理：*
 
 🔗 *当前链接*：
 \`${currentUrl}\`
@@ -150,7 +150,7 @@ class AdminHandler {
         
         // 验证URL格式
         if (!this.isValidUrl(newUrl)) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ *无效的URL格式*
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *无效的URL格式*
 
 请提供有效的HTTP/HTTPS链接，例如：
 \`https://example.com/playlist.m3u\``, { parse_mode: 'Markdown' }, msg);
@@ -160,7 +160,7 @@ class AdminHandler {
         const oldUrl = this.config.originalServer?.url || '未设置';
         
         try {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `🔄 *正在更新M3U订阅链接...*
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `�� *正在更新M3U订阅链接...*
 
 📡 *旧链接*：\`${oldUrl}\`
 🆕 *新链接*：\`${newUrl}\`
@@ -182,7 +182,7 @@ class AdminHandler {
                 const channelCount = this.userManager.channelManager.getChannelCount ? 
                     this.userManager.channelManager.getChannelCount() : '未知';
                 
-                await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接更新成功！*
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接更新成功！*
 
 📺 *新链接*：\`${newUrl}\`
 🔄 *频道列表已自动刷新*
@@ -192,7 +192,7 @@ class AdminHandler {
                 
                 this.logger.info(`管理员 ${msg.from.id} 更新了M3U链接: ${oldUrl} -> ${newUrl}`);
             } else {
-                await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接已更新！*
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接已更新！*
 
 📺 *新链接*：\`${newUrl}\`
 
@@ -201,7 +201,7 @@ class AdminHandler {
             
         } catch (error) {
             this.logger.error('更新M3U链接失败:', error);
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ *更新M3U链接失败：*
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *更新M3U链接失败：*
 
 *错误信息*：${error.message}
 
@@ -244,7 +244,7 @@ class AdminHandler {
         this.logger.info(`M3U URL updated to: ${newUrl}`);
     }
     
-    async handleLimitExceeded(msg, bot, args) {
+    async handleLimitExceeded(msg, telegramBotManager, args) {
         try {
             // 获取TokenManager实例来查看达到限制的用户
             const TokenManager = require('./TokenManager');
@@ -253,7 +253,7 @@ class AdminHandler {
             const limitExceededUsers = tokenManager.getLimitExceededUsers();
             
             if (limitExceededUsers.length === 0) {
-                await bot.sendAutoDeleteMessage(msg.chat.id, `📊 令牌限制管理
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `📊 令牌限制管理
 
 🎯 当前没有达到每日令牌限制的用户
 
@@ -285,17 +285,17 @@ class AdminHandler {
             message += `• \`reset 123456789\`\n`;
             message += `• \`blacklist 123456789\``;
 
-            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
 
         } catch (error) {
             this.logger.error('获取限制超额用户失败:', error);
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 获取限制超额用户失败：${error.message}`, {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 获取限制超额用户失败：${error.message}`, {}, msg);
         }
     }
 
-    async handleBlacklist(msg, bot, args) {
+    async handleBlacklist(msg, telegramBotManager, args) {
         if (args.length === 0) {
-            await this.showBlacklistHelp(msg, bot);
+            await this.showBlacklistHelp(msg, telegramBotManager);
             return;
         }
 
@@ -304,32 +304,32 @@ class AdminHandler {
         try {
             switch (action) {
                 case 'list':
-                    await this.listBlacklist(msg, bot);
+                    await this.listBlacklist(msg, telegramBotManager);
                     break;
                 case 'add':
                     if (args.length < 2) {
-                        await bot.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要加入黑名单的用户ID\n\n使用方法：`/admin blacklist add <用户ID>`', { parse_mode: 'Markdown' }, msg);
+                        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要加入黑名单的用户ID\n\n使用方法：`/admin blacklist add <用户ID>`', { parse_mode: 'Markdown' }, msg);
                         return;
                     }
-                    await this.addToBlacklist(msg, bot, args[1]);
+                    await this.addToBlacklist(msg, telegramBotManager, args[1]);
                     break;
                 case 'remove':
                     if (args.length < 2) {
-                        await bot.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要移除的用户ID\n\n使用方法：`/admin blacklist remove <用户ID>`', { parse_mode: 'Markdown' }, msg);
+                        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要移除的用户ID\n\n使用方法：`/admin blacklist remove <用户ID>`', { parse_mode: 'Markdown' }, msg);
                         return;
                     }
-                    await this.removeFromBlacklist(msg, bot, args[1]);
+                    await this.removeFromBlacklist(msg, telegramBotManager, args[1]);
                     break;
                 default:
-                    await this.showBlacklistHelp(msg, bot);
+                    await this.showBlacklistHelp(msg, telegramBotManager);
             }
         } catch (error) {
             this.logger.error('黑名单操作失败:', error);
-            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 黑名单操作失败：${error.message}`, {}, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 黑名单操作失败：${error.message}`, {}, msg);
         }
     }
 
-    async showBlacklistHelp(msg, bot) {
+    async showBlacklistHelp(msg, telegramBotManager) {
         const help = `🚫 *黑名单管理帮助*
 
 *可用命令*：
@@ -347,10 +347,10 @@ class AdminHandler {
 • 黑名单用户无法使用机器人的任何功能
 • 黑名单信息保存在配置文件中`;
 
-        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
 
-    async listBlacklist(msg, bot) {
+    async listBlacklist(msg, telegramBotManager) {
         // 确保配置结构存在
         if (!this.config.telegram) {
             this.config.telegram = {};
@@ -362,7 +362,7 @@ class AdminHandler {
         const blacklist = this.config.telegram.blacklist;
         
         if (blacklist.length === 0) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `🚫 *黑名单管理*
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `🚫 *黑名单管理*
 
 📝 当前黑名单为空
 
@@ -386,7 +386,7 @@ class AdminHandler {
                 // 尝试从任何一个群组获取用户信息
                 for (const groupId of groupIds) {
                     try {
-                        const chatMember = await bot.getChatMember(parseInt(groupId), userId);
+                        const chatMember = await telegramBotManager.getChatMember(parseInt(groupId), userId);
                         if (chatMember.user.username) {
                             message += `   *用户名*: @${chatMember.user.username}\n`;
                         }
@@ -412,10 +412,10 @@ class AdminHandler {
         message += `🛠️ *管理操作*：\n`;
         message += `• 使用 \`/admin blacklist remove <用户ID>\` 移除用户`;
 
-        await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
     }
 
-    async addToBlacklist(msg, bot, userId) {
+    async addToBlacklist(msg, telegramBotManager, userId) {
         const userIdStr = userId.toString();
         
         // 确保配置结构存在
@@ -427,7 +427,7 @@ class AdminHandler {
         }
         
         if (this.config.telegram.blacklist.includes(userIdStr)) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 已在黑名单中`, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 已在黑名单中`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -443,7 +443,7 @@ class AdminHandler {
         tokenManager.revokeTokensForUser(parseInt(userIdStr));
         tokenManager.clearUserLimit(parseInt(userIdStr));
 
-        await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已加入黑名单*
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已加入黑名单*
 
 👤 *用户ID*: \`${userIdStr}\`
 🚫 *状态*: 已禁止使用所有功能
@@ -456,7 +456,7 @@ class AdminHandler {
 
         // 尝试通知被加入黑名单的用户
         try {
-            await bot.sendAutoDeleteMessage(userIdStr, `🚫 *您已被管理员加入黑名单*
+            await telegramBotManager.sendAutoDeleteMessage(userIdStr, `🚫 *您已被管理员加入黑名单*
 
 您的账户已被限制使用 Xtream Codes Proxy 机器人的所有功能。
 
@@ -469,7 +469,7 @@ class AdminHandler {
         this.logger.info(`管理员 ${msg.from.id} 将用户 ${userIdStr} 加入黑名单`);
     }
 
-    async removeFromBlacklist(msg, bot, userId) {
+    async removeFromBlacklist(msg, telegramBotManager, userId) {
         const userIdStr = userId.toString();
         
         // 确保配置结构存在
@@ -482,7 +482,7 @@ class AdminHandler {
         
         const index = this.config.telegram.blacklist.indexOf(userIdStr);
         if (index === -1) {
-            await bot.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 不在黑名单中`, { parse_mode: 'Markdown' }, msg);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 不在黑名单中`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -492,7 +492,7 @@ class AdminHandler {
         // 保存配置
         await this.saveConfig();
 
-        await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已从黑名单移除*
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已从黑名单移除*
 
 👤 *用户ID*: \`${userIdStr}\`
 ✅ *状态*: 恢复正常访问
@@ -505,7 +505,7 @@ class AdminHandler {
 
         // 尝试通知被移除黑名单的用户
         try {
-            await bot.sendAutoDeleteMessage(userIdStr, `✅ *您已被管理员从黑名单移除*
+            await telegramBotManager.sendAutoDeleteMessage(userIdStr, `✅ *您已被管理员从黑名单移除*
 
 您的账户已恢复正常，可以重新使用 Xtream Codes Proxy 机器人的所有功能。
 

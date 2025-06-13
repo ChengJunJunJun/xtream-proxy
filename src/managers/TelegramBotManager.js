@@ -442,13 +442,13 @@ class TelegramBotManager {
             switch (cleanCommand) {
                 case '/start':
                     if (isPrivateChat) {
-                        await this.commandHandler.handleStart(msg, this.bot);
+                        await this.commandHandler.handleStart(msg, this);
                     }
                     break;
                 
                 case '/help':
                     if (isPrivateChat) {
-                        await this.commandHandler.handleHelp(msg, this.bot);
+                        await this.commandHandler.handleHelp(msg, this);
                     } else if (isGroupChat) {
                         // 在群组中提示用户私聊机器人
                         const botInfo = await this.bot.getMe();
@@ -460,19 +460,19 @@ class TelegramBotManager {
                 
                 case '/gettoken':
                     if (isPrivateChat) {
-                        await this.commandHandler.handleGetToken(msg, this.bot, this.tokenManager);
+                        await this.commandHandler.handleGetToken(msg, this, this.tokenManager);
                     }
                     break;
                 
                 case '/mycredentials':
                     if (isPrivateChat) {
-                        await this.commandHandler.handleMyCredentials(msg, this.bot);
+                        await this.commandHandler.handleMyCredentials(msg, this);
                     }
                     break;
                 
                 case '/status':
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
-                        await this.commandHandler.handleStatus(msg, this.bot);
+                        await this.commandHandler.handleStatus(msg, this);
                     } else if (!isPrivateChat) {
                         await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
@@ -482,7 +482,7 @@ class TelegramBotManager {
                 
                 case '/refresh':
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
-                        await this.commandHandler.handleRefresh(msg, this.bot);
+                        await this.commandHandler.handleRefresh(msg, this);
                     } else if (!isPrivateChat) {
                         await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
@@ -492,14 +492,14 @@ class TelegramBotManager {
                 
                 case '/revoke':
                     if (isPrivateChat) {
-                        await this.commandHandler.handleRevoke(msg, this.bot, args);
+                        await this.commandHandler.handleRevoke(msg, this, args);
                     }
                     break;
                 
                 // 管理员命令
                 case '/admin':
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
-                        await this.adminHandler.handleAdminCommand(msg, this.bot, args);
+                        await this.adminHandler.handleAdminCommand(msg, this, args);
                     } else if (!isPrivateChat) {
                         await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
@@ -539,7 +539,7 @@ class TelegramBotManager {
                 
                 case '/changem3u':
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
-                        await this.adminHandler.handleChangeM3U(msg, this.bot, args);
+                        await this.adminHandler.handleChangeM3U(msg, this, args);
                     } else if (!isPrivateChat) {
                         await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
@@ -588,7 +588,7 @@ class TelegramBotManager {
         // 检查是否是token验证（现在在私聊中处理）
         if (msg.text && msg.text.length === 8) {
             this.logger.info(`处理私聊中的令牌验证: ${msg.text}, 用户: ${msg.from.id}`);
-            await this.commandHandler.handleTokenVerification(msg, this.bot, this.tokenManager);
+            await this.commandHandler.handleTokenVerification(msg, this, this.tokenManager);
         }
     }
     
@@ -1313,7 +1313,7 @@ class TelegramBotManager {
                 return;
             }
 
-            await this.adminHandler.addToBlacklist(msg, this.bot, targetUserId);
+            await this.adminHandler.addToBlacklist(msg, this, targetUserId);
         } catch (error) {
             this.logger.error('加入黑名单失败:', error);
             await this.sendAutoDeleteMessage(msg.chat.id, `❌ 加入黑名单失败：${error.message}`);
