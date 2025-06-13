@@ -38,7 +38,7 @@ class CommandHandler {
 🔒 *隐私保护:*
 所有操作均在私聊中进行，确保您的信息安全。`;
         
-        await bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleHelp(msg, bot) {
@@ -78,7 +78,7 @@ class CommandHandler {
 
 ❓ 如有疑问，请联系群组管理员。`;
         
-        await bot.sendMessage(msg.chat.id, help, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleGetToken(msg, bot, tokenManager) {
@@ -106,7 +106,7 @@ class CommandHandler {
 • 令牌验证后将自动失效
 • 如令牌过期，请重新生成`;
             
-            await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
             
         } catch (error) {
             let errorMessage = `❌ 令牌生成失败：${error.message}`;
@@ -131,7 +131,7 @@ class CommandHandler {
 如有疑问，请联系管理员`;
             }
             
-            await bot.sendMessage(msg.chat.id, errorMessage);
+            await bot.sendAutoDeleteMessage(msg.chat.id, errorMessage, {}, msg);
         }
     }
     
@@ -143,14 +143,14 @@ class CommandHandler {
         
         const tokenData = tokenManager.verifyToken(token, userId);
         if (!tokenData) {
-            await bot.sendMessage(msg.chat.id, `❌ 令牌验证失败
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 令牌验证失败
 
 可能的原因：
 • 令牌已过期
 • 令牌格式不正确
 • 令牌已被使用
 
-请使用 /gettoken 重新生成令牌。`);
+请使用 /gettoken 重新生成令牌。`, {}, msg);
             return;
         }
         
@@ -215,15 +215,15 @@ class CommandHandler {
 • 过期前机器人会自动提醒您
 • 需要续期时请重新获取token`;
             
-            await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
             
             this.logger.info(`用户 ${userId} 验证成功，创建凭据: ${username}`);
             
         } catch (error) {
             this.logger.error(`创建用户失败:`, error);
-            await bot.sendMessage(msg.chat.id, `❌ 创建用户失败：${error.message}
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 创建用户失败：${error.message}
 
-请稍后重试或联系管理员。`);
+请稍后重试或联系管理员。`, {}, msg);
         }
     }
     
@@ -244,14 +244,14 @@ class CommandHandler {
         }
         
         if (!userCredentials) {
-            await bot.sendMessage(msg.chat.id, `❌ 您还没有登录凭据
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 您还没有登录凭据
 
 🔧 获取凭据流程：
 1. 使用 /gettoken 命令获取令牌
 2. 直接发送令牌进行验证
 3. 验证成功后自动获得凭据
 
-请使用 /gettoken 开始获取访问权限。`);
+请使用 /gettoken 开始获取访问权限。`, {}, msg);
             return;
         }
         
@@ -262,12 +262,12 @@ class CommandHandler {
             const userLinkExpiry = this.config.playlist?.userLinkExpiry || 86400000;
             const hoursValidity = Math.floor(userLinkExpiry / (60 * 60 * 1000));
             
-            await bot.sendMessage(msg.chat.id, `❌ 您的访问权限已过期
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 您的访问权限已过期
 
 🔄 重新获取访问权限：
 1. 使用 /gettoken 命令获取新的访问令牌
 2. 在私聊中发送令牌进行验证
-3. 验证成功后获得新的${hoursValidity}小时访问权限`);
+3. 验证成功后获得新的${hoursValidity}小时访问权限`, {}, msg);
             return;
         }
         
@@ -295,7 +295,7 @@ class CommandHandler {
 💡 提示：复制上述链接到您的IPTV播放器`;
         }
         
-        await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleStatus(msg, bot) {
@@ -327,7 +327,7 @@ class CommandHandler {
 
 🔄 最后更新: ${new Date().toLocaleString()}`;
         
-        await bot.sendMessage(msg.chat.id, status, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, status, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleRefresh(msg, bot) {
@@ -337,9 +337,9 @@ class CommandHandler {
         // 管理员和普通用户都可以使用，但显示不同的消息
         const userType = isAdmin ? '管理员' : '用户';
         
-        await bot.sendMessage(msg.chat.id, `🔄 ${userType}操作：正在刷新频道列表...
+        await bot.sendAutoDeleteMessage(msg.chat.id, `🔄 ${userType}操作：正在刷新频道列表...
 
-请稍候，这可能需要几秒钟时间。`);
+请稍候，这可能需要几秒钟时间。`, {}, msg);
         
         try {
             // 调用频道管理器的刷新方法
@@ -364,16 +364,16 @@ class CommandHandler {
 
 📋 使用 /mycredentials 获取您的播放列表链接`;
                 
-                await bot.sendMessage(msg.chat.id, message);
+                await bot.sendAutoDeleteMessage(msg.chat.id, message, {}, msg);
             } else {
-                await bot.sendMessage(msg.chat.id, `❌ 频道管理器不可用
+                await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 频道管理器不可用
 
-请联系管理员检查服务器状态。`);
+请联系管理员检查服务器状态。`, {}, msg);
             }
         } catch (error) {
-            await bot.sendMessage(msg.chat.id, `❌ 刷新操作失败：${error.message}
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 刷新操作失败：${error.message}
 
-请稍后重试或联系管理员。`);
+请稍后重试或联系管理员。`, {}, msg);
         }
     }
     
@@ -395,7 +395,7 @@ class CommandHandler {
         }
         
         if (deletedCount > 0) {
-            await bot.sendMessage(msg.chat.id, `✅ 访问权限撤销成功
+            await bot.sendAutoDeleteMessage(msg.chat.id, `✅ 访问权限撤销成功
 
 🗑️ 已删除的账户: ${deletedCount} 个
 📝 删除的用户名: ${deletedUsernames.join(', ')}
@@ -405,16 +405,16 @@ class CommandHandler {
 • 播放器将无法继续播放
 • 如需重新获取，请使用 /gettoken
 
-🔒 权限撤销操作已完成。`);
+🔒 权限撤销操作已完成。`, {}, msg);
         } else {
-            await bot.sendMessage(msg.chat.id, `❌ 未找到您的用户信息
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 未找到您的用户信息
 
 可能的原因：
 • 您还未获取过访问权限
 • 账户已经被删除
 • 系统数据异常
 
-💡 请使用 /gettoken 获取新的访问权限。`);
+💡 请使用 /gettoken 获取新的访问权限。`, {}, msg);
         }
     }
     

@@ -281,7 +281,7 @@ class TelegramBotManager {
                 
                 // 尝试发送错误回复
                 try {
-                    await this.bot.sendMessage(msg.chat.id, '❌ 处理消息时出现内部错误，请稍后重试');
+                    await this.sendAutoDeleteMessage(msg.chat.id, '❌ 处理消息时出现内部错误，请稍后重试');
                 } catch (sendError) {
                     this.logger.error('Failed to send error response:', sendError);
                 }
@@ -387,7 +387,7 @@ class TelegramBotManager {
         if (isPrivateChat) {
             const isGroupMember = await this.checkUserInGroup(userId);
             if (!isGroupMember && !this.isAdmin(userId)) {
-                await this.bot.sendMessage(chatId, `❌ 你没有权限获得链接
+                await this.sendAutoDeleteMessage(chatId, `❌ 你没有权限获得链接
 
 🔒 权限说明：
 • 只有指定群组的成员才能获得订阅链接
@@ -430,7 +430,7 @@ class TelegramBotManager {
         try {
             // 如果在群组中使用机器人命令，引导用户私聊
             if (isGroupChat && !command.includes('@')) {
-                await this.bot.sendMessage(msg.chat.id, `⚠️ 请私聊机器人使用所有功能以保护您的隐私。\n\n点击 @${(await this.bot.getMe()).username} 开始私聊。`, {
+                await this.sendAutoDeleteMessage(msg.chat.id, `⚠️ 请私聊机器人使用所有功能以保护您的隐私。\n\n点击 @${(await this.bot.getMe()).username} 开始私聊。`, {
                     reply_to_message_id: msg.message_id
                 });
                 return;
@@ -452,7 +452,7 @@ class TelegramBotManager {
                     } else if (isGroupChat) {
                         // 在群组中提示用户私聊机器人
                         const botInfo = await this.bot.getMe();
-                        await this.bot.sendMessage(msg.chat.id, `💬 请点击机器人头像 @${botInfo.username} 进行私聊获取帮助信息。\n\n🔒 为了保护您的隐私，所有功能都在私聊中使用。`, {
+                        await this.sendAutoDeleteMessage(msg.chat.id, `💬 请点击机器人头像 @${botInfo.username} 进行私聊获取帮助信息。\n\n🔒 为了保护您的隐私，所有功能都在私聊中使用。`, {
                             reply_to_message_id: msg.message_id
                         });
                     }
@@ -474,9 +474,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.commandHandler.handleStatus(msg, this.bot);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -484,9 +484,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.commandHandler.handleRefresh(msg, this.bot);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -501,9 +501,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.adminHandler.handleAdminCommand(msg, this.bot, args);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -511,9 +511,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.handleAddAdmin(msg, args);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -521,9 +521,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.handleRemoveAdmin(msg, args);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -531,9 +531,9 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.handleListAdmins(msg);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
@@ -541,15 +541,15 @@ class TelegramBotManager {
                     if (this.isAdmin(msg.from.id) && isPrivateChat) {
                         await this.adminHandler.handleChangeM3U(msg, this.bot, args);
                     } else if (!isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '⚠️ 管理员命令请私聊机器人使用');
                     } else {
-                        await this.bot.sendMessage(msg.chat.id, '❌ 您没有管理员权限');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❌ 您没有管理员权限');
                     }
                     break;
                 
                 default:
                     if (isPrivateChat) {
-                        await this.bot.sendMessage(msg.chat.id, '❓ 未知命令，请使用 /help 查看可用命令');
+                        await this.sendAutoDeleteMessage(msg.chat.id, '❓ 未知命令，请使用 /help 查看可用命令');
                     }
             }
             
@@ -560,7 +560,7 @@ class TelegramBotManager {
             
             // 发送错误消息给用户
             try {
-                await this.bot.sendMessage(msg.chat.id, `❌ 处理命令时出现错误: ${error.message}`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `❌ 处理命令时出现错误: ${error.message}`);
             } catch (sendError) {
                 this.logger.error('发送错误消息失败:', sendError);
             }
@@ -606,7 +606,7 @@ class TelegramBotManager {
             
             // 通知用户其访问权限已被撤销
             try {
-                await this.bot.sendMessage(userId, '❌ 您已离开授权群组，访问权限已被撤销。\n\n如需继续使用，请重新加入群组。');
+                await this.sendAutoDeleteMessage(userId, '❌ 您已离开授权群组，访问权限已被撤销。\n\n如需继续使用，请重新加入群组。');
             } catch (error) {
                 this.logger.error(`无法通知用户 ${userId} 权限撤销:`, error);
             }
@@ -623,14 +623,14 @@ class TelegramBotManager {
             const welcomeText = `🎉 欢迎 @${member.username || member.first_name} 加入群组！\n\n请私聊机器人 @${(await this.bot.getMe()).username} 使用 /start 命令开始获取IPTV访问权限。`;
             
             try {
-                await this.bot.sendMessage(msg.chat.id, welcomeText);
+                await this.sendAutoDeleteMessage(msg.chat.id, welcomeText);
             } catch (error) {
                 this.logger.error('Error sending welcome message:', error);
             }
             
             // 同时私聊发送欢迎消息
             try {
-                await this.bot.sendMessage(member.id, `🎉 欢迎加入授权群组！
+                await this.sendAutoDeleteMessage(member.id, `🎉 欢迎加入授权群组！
 
 您现在可以使用以下命令：
 🔸 /start - 开始使用
@@ -673,7 +673,7 @@ class TelegramBotManager {
         
         for (const adminId of adminIds) {
             try {
-                await this.bot.sendMessage(adminId, message);
+                await this.sendAutoDeleteMessage(adminId, message);
             } catch (error) {
                 // 如果是用户还未与机器人开始对话的错误，只记录debug日志
                 if (error.code === 'ETELEGRAM' && 
@@ -684,6 +684,37 @@ class TelegramBotManager {
                     this.logger.error(`Failed to notify admin ${adminId}:`, error);
                 }
             }
+        }
+    }
+
+    async sendAutoDeleteMessage(chatId, text, options = {}, contextMsg = null) {
+        try {
+            const sentMsg = await this.bot.sendMessage(chatId, text, options);
+            // 判断消息类型
+            let isGroup = false;
+            let isPrivate = false;
+            if (contextMsg) {
+                isGroup = contextMsg.chat && (contextMsg.chat.type === 'group' || contextMsg.chat.type === 'supergroup');
+                isPrivate = contextMsg.chat && contextMsg.chat.type === 'private';
+            } else {
+                // fallback: 通过chatId判断
+                isGroup = this.isAuthorizedGroup(chatId);
+                isPrivate = !isGroup;
+            }
+            let deleteDelay = 0;
+            if (isGroup) {
+                deleteDelay = 10 * 1000; // 10秒
+            } else if (isPrivate) {
+                deleteDelay = 10 * 60 * 1000; // 10分钟
+            }
+            if (deleteDelay > 0) {
+                setTimeout(() => {
+                    this.bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+                }, deleteDelay);
+            }
+            return sentMsg;
+        } catch (err) {
+            this.logger.error('sendAutoDeleteMessage error:', err.message);
         }
     }
 
@@ -879,7 +910,7 @@ class TelegramBotManager {
 
 💡 建议您提前续期以避免服务中断。`;
 
-            await this.bot.sendMessage(telegramUserId, message);
+            await this.sendAutoDeleteMessage(telegramUserId, message);
             this.logger.info(`发送过期提醒给用户 ${username} (${telegramUserId})`);
         } catch (error) {
             this.logger.error(`发送过期提醒失败 ${username}:`, error);
@@ -902,7 +933,7 @@ class TelegramBotManager {
 
 💡 每次验证后都会获得新的${hoursValidity}小时访问期限。`;
 
-            await this.bot.sendMessage(telegramUserId, message);
+            await this.sendAutoDeleteMessage(telegramUserId, message);
             this.logger.info(`用户 ${username} (${telegramUserId}) 访问权限已过期`);
         } catch (error) {
             this.logger.error(`发送过期通知失败 ${username}:`, error);
@@ -920,7 +951,7 @@ class TelegramBotManager {
     async handleAddAdmin(msg, args) {
         try {
             if (args.length === 0) {
-                await this.bot.sendMessage(msg.chat.id, `❓ 请提供要添加的管理员用户ID
+                await this.sendAutoDeleteMessage(msg.chat.id, `❓ 请提供要添加的管理员用户ID
 
 📝 使用方法：
 \`/addadmin 用户ID\`
@@ -935,7 +966,7 @@ class TelegramBotManager {
             
             // 检查是否已经是管理员
             if (this.isAdmin(newAdminId)) {
-                await this.bot.sendMessage(msg.chat.id, `⚠️ 用户 ${newAdminId} 已经是管理员了`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 ${newAdminId} 已经是管理员了`);
                 return;
             }
             
@@ -955,13 +986,13 @@ class TelegramBotManager {
             // 为新管理员设置命令
             await this.setupAdminCommands(newAdminId);
             
-            await this.bot.sendMessage(msg.chat.id, `✅ 成功添加管理员：${newAdminId}
+            await this.sendAutoDeleteMessage(msg.chat.id, `✅ 成功添加管理员：${newAdminId}
 
 🔧 新管理员现在可以使用所有管理员命令`);
             
             // 通知新管理员
             try {
-                await this.bot.sendMessage(newAdminId, `🎉 您已被添加为 Xtream Codes Proxy 机器人的管理员！
+                await this.sendAutoDeleteMessage(newAdminId, `🎉 您已被添加为 Xtream Codes Proxy 机器人的管理员！
 
 🔧 您现在可以使用以下管理员命令：
 • /admin - 管理员面板
@@ -986,14 +1017,14 @@ class TelegramBotManager {
             
         } catch (error) {
             this.logger.error('添加管理员失败:', error);
-            await this.bot.sendMessage(msg.chat.id, `❌ 添加管理员失败：${error.message}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `❌ 添加管理员失败：${error.message}`);
         }
     }
     
     async handleRemoveAdmin(msg, args) {
         try {
             if (args.length === 0) {
-                await this.bot.sendMessage(msg.chat.id, `❓ 请提供要移除的管理员用户ID
+                await this.sendAutoDeleteMessage(msg.chat.id, `❓ 请提供要移除的管理员用户ID
 
 📝 使用方法：
 \`/removeadmin 用户ID\`
@@ -1009,13 +1040,13 @@ class TelegramBotManager {
             
             // 不能移除自己
             if (removeAdminId === currentAdminId) {
-                await this.bot.sendMessage(msg.chat.id, `❌ 您不能移除自己的管理员权限`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `❌ 您不能移除自己的管理员权限`);
                 return;
             }
             
             // 检查是否是管理员
             if (!this.isAdmin(removeAdminId)) {
-                await this.bot.sendMessage(msg.chat.id, `⚠️ 用户 ${removeAdminId} 不是管理员`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 ${removeAdminId} 不是管理员`);
                 return;
             }
             
@@ -1026,7 +1057,7 @@ class TelegramBotManager {
             
             // 如果是旧格式的主管理员，不能移除
             if (this.config.adminUserId === removeAdminId) {
-                await this.bot.sendMessage(msg.chat.id, `❌ 无法移除主管理员 ${removeAdminId}`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `❌ 无法移除主管理员 ${removeAdminId}`);
                 return;
             }
             
@@ -1039,11 +1070,11 @@ class TelegramBotManager {
             // 为该用户重置为普通用户命令
             await this.setupUserCommands(removeAdminId);
             
-            await this.bot.sendMessage(msg.chat.id, `✅ 成功移除管理员：${removeAdminId}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `✅ 成功移除管理员：${removeAdminId}`);
             
             // 通知被移除的管理员
             try {
-                await this.bot.sendMessage(removeAdminId, `⚠️ 您的 Xtream Codes Proxy 机器人管理员权限已被移除。
+                await this.sendAutoDeleteMessage(removeAdminId, `⚠️ 您的 Xtream Codes Proxy 机器人管理员权限已被移除。
 
 您现在只能使用普通用户命令。请重新启动与机器人的对话以看到更新的命令菜单。`);
             } catch (error) {
@@ -1061,7 +1092,7 @@ class TelegramBotManager {
             
         } catch (error) {
             this.logger.error('移除管理员失败:', error);
-            await this.bot.sendMessage(msg.chat.id, `❌ 移除管理员失败：${error.message}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `❌ 移除管理员失败：${error.message}`);
         }
     }
     
@@ -1070,7 +1101,7 @@ class TelegramBotManager {
             const adminIds = this.getAllAdminIds();
             
             if (adminIds.length === 0) {
-                await this.bot.sendMessage(msg.chat.id, `❌ 未找到管理员列表`);
+                await this.sendAutoDeleteMessage(msg.chat.id, `❌ 未找到管理员列表`);
                 return;
             }
             
@@ -1121,11 +1152,11 @@ class TelegramBotManager {
             }
             
             // 不使用Markdown格式，避免解析错误
-            await this.bot.sendMessage(msg.chat.id, adminList);
+            await this.sendAutoDeleteMessage(msg.chat.id, adminList);
             
         } catch (error) {
             this.logger.error('获取管理员列表失败:', error);
-            await this.bot.sendMessage(msg.chat.id, `❌ 获取管理员列表失败：${error.message}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `❌ 获取管理员列表失败：${error.message}`);
         }
     }
     
@@ -1237,14 +1268,14 @@ class TelegramBotManager {
     async handleResetUserLimit(msg, targetUserId) {
         try {
             if (!targetUserId) {
-                await this.bot.sendMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`reset 123456789`', { parse_mode: 'Markdown' });
+                await this.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`reset 123456789`', { parse_mode: 'Markdown' });
                 return;
             }
 
             const success = this.tokenManager.resetUserLimit(targetUserId);
             
             if (success) {
-                await this.bot.sendMessage(msg.chat.id, `✅ *用户令牌限制已重置*
+                await this.sendAutoDeleteMessage(msg.chat.id, `✅ *用户令牌限制已重置*
 
 👤 *用户ID*: \`${targetUserId}\`
 🔄 *操作*: 每日令牌生成限制已清除
@@ -1256,7 +1287,7 @@ class TelegramBotManager {
 
                 // 尝试通知被重置限制的用户
                 try {
-                    await this.bot.sendMessage(targetUserId, `✅ *您的令牌生成限制已被管理员重置*
+                    await this.sendAutoDeleteMessage(targetUserId, `✅ *您的令牌生成限制已被管理员重置*
 
 🔄 您现在可以重新生成访问令牌了
 
@@ -1267,25 +1298,25 @@ class TelegramBotManager {
 
                 this.logger.info(`管理员 ${msg.from.id} 重置了用户 ${targetUserId} 的令牌限制`);
             } else {
-                await this.bot.sendMessage(msg.chat.id, `⚠️ 用户 \`${targetUserId}\` 没有达到令牌限制或不存在限制记录`, { parse_mode: 'Markdown' });
+                await this.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${targetUserId}\` 没有达到令牌限制或不存在限制记录`, { parse_mode: 'Markdown' });
             }
         } catch (error) {
             this.logger.error('重置用户限制失败:', error);
-            await this.bot.sendMessage(msg.chat.id, `❌ 重置用户限制失败：${error.message}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `❌ 重置用户限制失败：${error.message}`);
         }
     }
 
     async handleAddToBlacklist(msg, targetUserId) {
         try {
             if (!targetUserId) {
-                await this.bot.sendMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`blacklist 123456789`', { parse_mode: 'Markdown' });
+                await this.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供用户ID\n\n使用方法：`blacklist 123456789`', { parse_mode: 'Markdown' });
                 return;
             }
 
             await this.adminHandler.addToBlacklist(msg, this.bot, targetUserId);
         } catch (error) {
             this.logger.error('加入黑名单失败:', error);
-            await this.bot.sendMessage(msg.chat.id, `❌ 加入黑名单失败：${error.message}`);
+            await this.sendAutoDeleteMessage(msg.chat.id, `❌ 加入黑名单失败：${error.message}`);
         }
     }
 

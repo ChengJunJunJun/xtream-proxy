@@ -53,7 +53,7 @@ class AdminHandler {
 • /admin blacklist list
 • /changem3u https://example.com/playlist.m3u`;
         
-        await bot.sendMessage(msg.chat.id, help);
+        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleStats(msg, bot) {
@@ -75,14 +75,14 @@ class AdminHandler {
 
 ✅ 系统运行正常`;
         
-        await bot.sendMessage(msg.chat.id, stats, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, stats, { parse_mode: 'Markdown' }, msg);
     }
     
     async handleUsersList(msg, bot) {
         const users = this.userManager.getUsers();
         
         if (Object.keys(users).length === 0) {
-            await bot.sendMessage(msg.chat.id, '📝 当前没有用户');
+            await bot.sendAutoDeleteMessage(msg.chat.id, '�� 当前没有用户', {}, msg);
             return;
         }
         
@@ -101,23 +101,23 @@ class AdminHandler {
         if (message.length > 4000) {
             const chunks = this.splitMessage(message, 4000);
             for (const chunk of chunks) {
-                await bot.sendMessage(msg.chat.id, chunk, { parse_mode: 'Markdown' });
+                await bot.sendAutoDeleteMessage(msg.chat.id, chunk, { parse_mode: 'Markdown' }, msg);
             }
         } else {
-            await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
         }
     }
     
     async handleCleanup(msg, bot) {
-        await bot.sendMessage(msg.chat.id, '🧹 正在清理过期数据...');
+        await bot.sendAutoDeleteMessage(msg.chat.id, '🧹 正在清理过期数据...', {}, msg);
         
         try {
             // 这里可以调用各种清理方法
             this.userManager.cleanup();
             
-            await bot.sendMessage(msg.chat.id, '✅ 数据清理完成');
+            await bot.sendAutoDeleteMessage(msg.chat.id, '✅ 数据清理完成', {}, msg);
         } catch (error) {
-            await bot.sendMessage(msg.chat.id, `❌ 清理失败：${error.message}`);
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 清理失败：${error.message}`, {}, msg);
         }
     }
     
@@ -127,7 +127,7 @@ class AdminHandler {
             const channelCount = this.userManager.channelManager ? 
                 this.userManager.channelManager.getChannelCount() : 0;
             
-            await bot.sendMessage(msg.chat.id, `📺 *当前M3U订阅链接管理：*
+            await bot.sendAutoDeleteMessage(msg.chat.id, `📺 *当前M3U订阅链接管理：*
 
 🔗 *当前链接*：
 \`${currentUrl}\`
@@ -142,7 +142,7 @@ class AdminHandler {
 📝 *示例*：
 \`https://example.com/playlist.m3u\`
 
-⚠️ *注意*：修改后将自动刷新频道列表并更新所有用户的播放列表`, { parse_mode: 'Markdown' });
+⚠️ *注意*：修改后将自动刷新频道列表并更新所有用户的播放列表`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -150,22 +150,22 @@ class AdminHandler {
         
         // 验证URL格式
         if (!this.isValidUrl(newUrl)) {
-            await bot.sendMessage(msg.chat.id, `❌ *无效的URL格式*
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ *无效的URL格式*
 
 请提供有效的HTTP/HTTPS链接，例如：
-\`https://example.com/playlist.m3u\``, { parse_mode: 'Markdown' });
+\`https://example.com/playlist.m3u\``, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
         const oldUrl = this.config.originalServer?.url || '未设置';
         
         try {
-            await bot.sendMessage(msg.chat.id, `🔄 *正在更新M3U订阅链接...*
+            await bot.sendAutoDeleteMessage(msg.chat.id, `🔄 *正在更新M3U订阅链接...*
 
 📡 *旧链接*：\`${oldUrl}\`
 🆕 *新链接*：\`${newUrl}\`
 
-请稍候，正在测试新链接并刷新频道列表...`, { parse_mode: 'Markdown' });
+请稍候，正在测试新链接并刷新频道列表...`, { parse_mode: 'Markdown' }, msg);
 
             // 更新配置
             await this.updateM3UUrl(newUrl);
@@ -182,26 +182,26 @@ class AdminHandler {
                 const channelCount = this.userManager.channelManager.getChannelCount ? 
                     this.userManager.channelManager.getChannelCount() : '未知';
                 
-                await bot.sendMessage(msg.chat.id, `✅ *M3U订阅链接更新成功！*
+                await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接更新成功！*
 
 📺 *新链接*：\`${newUrl}\`
 🔄 *频道列表已自动刷新*
 📊 *当前频道数量*：${channelCount}
 
-💡 *重要提醒*：所有用户需要重新获取播放列表才能看到更新的频道。`, { parse_mode: 'Markdown' });
+💡 *重要提醒*：所有用户需要重新获取播放列表才能看到更新的频道。`, { parse_mode: 'Markdown' }, msg);
                 
                 this.logger.info(`管理员 ${msg.from.id} 更新了M3U链接: ${oldUrl} -> ${newUrl}`);
             } else {
-                await bot.sendMessage(msg.chat.id, `✅ *M3U订阅链接已更新！*
+                await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接已更新！*
 
 📺 *新链接*：\`${newUrl}\`
 
-⚠️ *警告*：频道管理器不可用，请手动刷新频道列表。`, { parse_mode: 'Markdown' });
+⚠️ *警告*：频道管理器不可用，请手动刷新频道列表。`, { parse_mode: 'Markdown' }, msg);
             }
             
         } catch (error) {
             this.logger.error('更新M3U链接失败:', error);
-            await bot.sendMessage(msg.chat.id, `❌ *更新M3U链接失败：*
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ *更新M3U链接失败：*
 
 *错误信息*：${error.message}
 
@@ -210,7 +210,7 @@ class AdminHandler {
 • 链接格式不正确
 • 网络连接问题
 
-*解决方案*：请检查链接是否有效后重试。`, { parse_mode: 'Markdown' });
+*解决方案*：请检查链接是否有效后重试。`, { parse_mode: 'Markdown' }, msg);
         }
     }
 
@@ -253,13 +253,13 @@ class AdminHandler {
             const limitExceededUsers = tokenManager.getLimitExceededUsers();
             
             if (limitExceededUsers.length === 0) {
-                await bot.sendMessage(msg.chat.id, `📊 令牌限制管理
+                await bot.sendAutoDeleteMessage(msg.chat.id, `📊 令牌限制管理
 
 🎯 当前没有达到每日令牌限制的用户
 
 💡 用户达到每日令牌限制后会在这里显示，您可以选择：
 • 重置用户的每日限制
-• 将用户加入黑名单`);
+• 将用户加入黑名单`, {}, msg);
                 return;
             }
 
@@ -285,11 +285,11 @@ class AdminHandler {
             message += `• \`reset 123456789\`\n`;
             message += `• \`blacklist 123456789\``;
 
-            await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
 
         } catch (error) {
             this.logger.error('获取限制超额用户失败:', error);
-            await bot.sendMessage(msg.chat.id, `❌ 获取限制超额用户失败：${error.message}`);
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 获取限制超额用户失败：${error.message}`, {}, msg);
         }
     }
 
@@ -308,14 +308,14 @@ class AdminHandler {
                     break;
                 case 'add':
                     if (args.length < 2) {
-                        await bot.sendMessage(msg.chat.id, '❌ 请提供要加入黑名单的用户ID\n\n使用方法：`/admin blacklist add <用户ID>`', { parse_mode: 'Markdown' });
+                        await bot.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要加入黑名单的用户ID\n\n使用方法：`/admin blacklist add <用户ID>`', { parse_mode: 'Markdown' }, msg);
                         return;
                     }
                     await this.addToBlacklist(msg, bot, args[1]);
                     break;
                 case 'remove':
                     if (args.length < 2) {
-                        await bot.sendMessage(msg.chat.id, '❌ 请提供要移除的用户ID\n\n使用方法：`/admin blacklist remove <用户ID>`', { parse_mode: 'Markdown' });
+                        await bot.sendAutoDeleteMessage(msg.chat.id, '❌ 请提供要移除的用户ID\n\n使用方法：`/admin blacklist remove <用户ID>`', { parse_mode: 'Markdown' }, msg);
                         return;
                     }
                     await this.removeFromBlacklist(msg, bot, args[1]);
@@ -325,7 +325,7 @@ class AdminHandler {
             }
         } catch (error) {
             this.logger.error('黑名单操作失败:', error);
-            await bot.sendMessage(msg.chat.id, `❌ 黑名单操作失败：${error.message}`);
+            await bot.sendAutoDeleteMessage(msg.chat.id, `❌ 黑名单操作失败：${error.message}`, {}, msg);
         }
     }
 
@@ -347,7 +347,7 @@ class AdminHandler {
 • 黑名单用户无法使用机器人的任何功能
 • 黑名单信息保存在配置文件中`;
 
-        await bot.sendMessage(msg.chat.id, help, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
 
     async listBlacklist(msg, bot) {
@@ -362,13 +362,13 @@ class AdminHandler {
         const blacklist = this.config.telegram.blacklist;
         
         if (blacklist.length === 0) {
-            await bot.sendMessage(msg.chat.id, `🚫 *黑名单管理*
+            await bot.sendAutoDeleteMessage(msg.chat.id, `🚫 *黑名单管理*
 
 📝 当前黑名单为空
 
 💡 您可以使用以下命令管理黑名单：
 • \`/admin blacklist add <用户ID>\` - 添加用户
-• 当用户达到令牌限制时，在限制管理页面也可直接加入黑名单`, { parse_mode: 'Markdown' });
+• 当用户达到令牌限制时，在限制管理页面也可直接加入黑名单`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -412,7 +412,7 @@ class AdminHandler {
         message += `🛠️ *管理操作*：\n`;
         message += `• 使用 \`/admin blacklist remove <用户ID>\` 移除用户`;
 
-        await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+        await bot.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
     }
 
     async addToBlacklist(msg, bot, userId) {
@@ -427,7 +427,7 @@ class AdminHandler {
         }
         
         if (this.config.telegram.blacklist.includes(userIdStr)) {
-            await bot.sendMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 已在黑名单中`, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 已在黑名单中`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -443,7 +443,7 @@ class AdminHandler {
         tokenManager.revokeTokensForUser(parseInt(userIdStr));
         tokenManager.clearUserLimit(parseInt(userIdStr));
 
-        await bot.sendMessage(msg.chat.id, `✅ *用户已加入黑名单*
+        await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已加入黑名单*
 
 👤 *用户ID*: \`${userIdStr}\`
 🚫 *状态*: 已禁止使用所有功能
@@ -452,15 +452,15 @@ class AdminHandler {
 该用户将无法：
 • 生成新的访问令牌
 • 使用机器人的任何功能
-• 获取播放列表`, { parse_mode: 'Markdown' });
+• 获取播放列表`, { parse_mode: 'Markdown' }, msg);
 
         // 尝试通知被加入黑名单的用户
         try {
-            await bot.sendMessage(userIdStr, `🚫 *您已被管理员加入黑名单*
+            await bot.sendAutoDeleteMessage(userIdStr, `🚫 *您已被管理员加入黑名单*
 
 您的账户已被限制使用 Xtream Codes Proxy 机器人的所有功能。
 
-如有疑问，请联系管理员。`);
+如有疑问，请联系管理员。`, {}, msg);
         } catch (error) {
             // 如果无法发送消息给用户，不需要报错
             this.logger.debug(`无法通知被加入黑名单的用户 ${userIdStr}:`, error.message);
@@ -482,7 +482,7 @@ class AdminHandler {
         
         const index = this.config.telegram.blacklist.indexOf(userIdStr);
         if (index === -1) {
-            await bot.sendMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 不在黑名单中`, { parse_mode: 'Markdown' });
+            await bot.sendAutoDeleteMessage(msg.chat.id, `⚠️ 用户 \`${userIdStr}\` 不在黑名单中`, { parse_mode: 'Markdown' }, msg);
             return;
         }
 
@@ -492,7 +492,7 @@ class AdminHandler {
         // 保存配置
         await this.saveConfig();
 
-        await bot.sendMessage(msg.chat.id, `✅ *用户已从黑名单移除*
+        await bot.sendAutoDeleteMessage(msg.chat.id, `✅ *用户已从黑名单移除*
 
 👤 *用户ID*: \`${userIdStr}\`
 ✅ *状态*: 恢复正常访问
@@ -501,15 +501,15 @@ class AdminHandler {
 该用户现在可以：
 • 生成新的访问令牌
 • 使用机器人的所有功能
-• 获取播放列表`, { parse_mode: 'Markdown' });
+• 获取播放列表`, { parse_mode: 'Markdown' }, msg);
 
         // 尝试通知被移除黑名单的用户
         try {
-            await bot.sendMessage(userIdStr, `✅ *您已被管理员从黑名单移除*
+            await bot.sendAutoDeleteMessage(userIdStr, `✅ *您已被管理员从黑名单移除*
 
 您的账户已恢复正常，可以重新使用 Xtream Codes Proxy 机器人的所有功能。
 
-请使用 /start 重新开始使用机器人。`);
+请使用 /start 重新开始使用机器人。`, {}, msg);
         } catch (error) {
             // 如果无法发送消息给用户，不需要报错
             this.logger.debug(`无法通知被移除黑名单的用户 ${userIdStr}:`, error.message);
