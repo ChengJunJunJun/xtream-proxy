@@ -155,8 +155,8 @@ class CommandHandler {
         }
         
         // 创建用户凭据
-        const username = `tg_${this.generateShortId()}`;
-        const password = this.generatePassword();
+        let username = `tg_${this.generateShortId()}`;
+        let password = this.generatePassword();
         
         try {
             // 检查用户是否已存在，如果存在则更新过期时间

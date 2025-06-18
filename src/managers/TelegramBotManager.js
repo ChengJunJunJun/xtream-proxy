@@ -703,7 +703,7 @@ class TelegramBotManager {
             }
             let deleteDelay = 0;
             if (isGroup) {
-                deleteDelay = 10 * 1000; // 10秒
+                deleteDelay = 60 * 1000; // 10秒
             } else if (isPrivate) {
                 deleteDelay = 10 * 60 * 1000; // 10分钟
             }
