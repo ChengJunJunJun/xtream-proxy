@@ -18,6 +18,10 @@ class TelegramBotManager {
         this.initializeAttempts = 0;
         this.maxInitializeAttempts = 5;
         
+        // 消息去重 - 防止重复处理同一条消息
+        this.processedMessages = new Map();
+        this.messageCleanupInterval = null;
+        
         // 初始化子管理器
         this.tokenManager = new TokenManager(this.config, this.logger);
         this.userValidator = new UserValidator(this.config, this.logger);
@@ -29,6 +33,8 @@ class TelegramBotManager {
         
         if (config.features.enableTelegramBot && this.config.botToken) {
             this.initializeBot();
+            // 启动消息去重清理任务
+            this.startMessageCleanupTask();
         }
     }
     
@@ -59,6 +65,8 @@ class TelegramBotManager {
             if (this.bot) {
                 try {
                     await this.bot.stopPolling();
+                    // 清除所有事件监听器
+                    this.bot.removeAllListeners();
                     this.bot = null;
                 } catch (error) {
                     this.logger.warn('停止现有机器人实例时出错:', error.message);
@@ -270,6 +278,13 @@ class TelegramBotManager {
     setupBotHandlers() {
         if (!this.bot) return;
         
+        // 重要：先移除所有现有的监听器，防止重复注册
+        this.bot.removeAllListeners('message');
+        this.bot.removeAllListeners('polling_error');
+        this.bot.removeAllListeners('chat_member');
+        this.bot.removeAllListeners('new_chat_members');
+        this.bot.removeAllListeners('left_chat_member');
+        
         // 消息处理
         this.bot.on('message', async (msg) => {
             if (this.isShuttingDown) return;
@@ -369,6 +384,27 @@ class TelegramBotManager {
     }
     
     async handleMessage(msg) {
+        // 消息去重检查 - 防止重复处理同一条消息
+        const messageId = `${msg.chat.id}_${msg.message_id}_${msg.from.id}`;
+        const messageTime = msg.date * 1000; // 转换为毫秒
+        
+        // 检查消息是否已被处理
+        if (this.processedMessages.has(messageId)) {
+            this.logger.debug(`消息已处理过，跳过: ${messageId}`);
+            return;
+        }
+        
+        // 记录消息已处理，包含时间戳
+        this.processedMessages.set(messageId, messageTime);
+        
+        // 清理超过5分钟的旧消息记录
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        for (const [id, time] of this.processedMessages.entries()) {
+            if (time < fiveMinutesAgo) {
+                this.processedMessages.delete(id);
+            }
+        }
+        
         const chatId = msg.chat.id;
         const userId = msg.from.id;
         const username = msg.from.username;
@@ -865,6 +901,29 @@ class TelegramBotManager {
             }
         }, 60 * 60 * 1000); // 每小时执行一次
     }
+    
+    startMessageCleanupTask() {
+        // 每30分钟清理一次过期的消息记录
+        this.messageCleanupInterval = setInterval(() => {
+            try {
+                const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+                let cleanedCount = 0;
+                
+                for (const [id, time] of this.processedMessages.entries()) {
+                    if (time < thirtyMinutesAgo) {
+                        this.processedMessages.delete(id);
+                        cleanedCount++;
+                    }
+                }
+                
+                if (cleanedCount > 0) {
+                    this.logger.debug(`清理了 ${cleanedCount} 条过期的消息记录`);
+                }
+            } catch (error) {
+                this.logger.error('清理消息记录失败:', error);
+            }
+        }, 30 * 60 * 1000); // 每30分钟执行一次
+    }
 
     async checkUserExpiry() {
         const users = this.userManager.getUsers();
@@ -1331,6 +1390,15 @@ class TelegramBotManager {
         
         try {
             this.logger.info('🔄 开始关闭Telegram机器人...');
+            
+            // 清理定时器
+            if (this.messageCleanupInterval) {
+                clearInterval(this.messageCleanupInterval);
+                this.messageCleanupInterval = null;
+            }
+            
+            // 清理消息记录
+            this.processedMessages.clear();
             
             // 保存所有数据
             this.tokenManager.saveData();
