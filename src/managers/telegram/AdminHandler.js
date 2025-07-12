@@ -32,6 +32,9 @@ class AdminHandler {
             case 'blacklist':
                 await this.handleBlacklist(msg, telegramBotManager, args.slice(1));
                 break;
+            case 'useragent':
+                await this.handleUserAgent(msg, telegramBotManager, args.slice(1));
+                break;
             default:
                 await this.showAdminHelp(msg, telegramBotManager);
         }
@@ -45,12 +48,14 @@ class AdminHandler {
 • /admin cleanup - 清理过期数据
 • /admin limitexceeded - 管理令牌限制超额用户
 • /admin blacklist - 管理黑名单
+• /admin useragent - 管理User-Agent设置
 • /changem3u <新的M3U链接> - 修改M3U订阅链接
 
 使用示例：
 • /admin stats
 • /admin limitexceeded
 • /admin blacklist list
+• /admin useragent list
 • /changem3u https://example.com/playlist.m3u`;
         
         await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
@@ -578,6 +583,288 @@ class AdminHandler {
         
         // 其他情况，转为字符串数组
         return [groupId.toString().trim()];
+    }
+    
+    async handleUserAgent(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            await this.showUserAgentHelp(msg, telegramBotManager);
+            return;
+        }
+        
+        const subCommand = args[0].toLowerCase();
+        
+        switch (subCommand) {
+            case 'list':
+                await this.listUserAgents(msg, telegramBotManager);
+                break;
+            case 'set':
+                await this.setUserAgent(msg, telegramBotManager, args.slice(1));
+                break;
+            case 'remove':
+                await this.removeUserAgent(msg, telegramBotManager, args.slice(1));
+                break;
+            case 'enable':
+                await this.enableUserAgent(msg, telegramBotManager);
+                break;
+            case 'disable':
+                await this.disableUserAgent(msg, telegramBotManager);
+                break;
+            case 'default':
+                await this.setDefaultUserAgent(msg, telegramBotManager, args.slice(1));
+                break;
+            default:
+                await this.showUserAgentHelp(msg, telegramBotManager);
+        }
+    }
+    
+    async showUserAgentHelp(msg, telegramBotManager) {
+        const help = `🔧 *User-Agent 管理帮助*
+
+📋 *可用命令*：
+• \`/admin useragent list\` - 查看所有User-Agent设置
+• \`/admin useragent set <服务器URL> <User-Agent>\` - 设置服务器User-Agent
+• \`/admin useragent remove <服务器URL>\` - 移除服务器User-Agent
+• \`/admin useragent enable\` - 启用User-Agent验证
+• \`/admin useragent disable\` - 禁用User-Agent验证
+• \`/admin useragent default <User-Agent>\` - 设置默认User-Agent
+
+💡 *使用示例*：
+• \`/admin useragent set example.com judy/8.8.8\`
+• \`/admin useragent remove example.com\`
+• \`/admin useragent default judy/8.8.8\`
+
+⚠️ *注意*：
+• 每个服务器只需要设置一个User-Agent
+• 用户必须使用指定的User-Agent才能观看直播
+• 启用验证后，不匹配的请求将被拒绝`;
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
+    }
+    
+    async listUserAgents(msg, telegramBotManager) {
+        const userAgentManager = this.userManager.channelManager?.getUserAgentManager();
+        if (!userAgentManager) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ User-Agent管理器不可用', {}, msg);
+            return;
+        }
+        
+        const stats = userAgentManager.getStats();
+        const allUserAgents = userAgentManager.getAllServerUserAgents();
+        
+        let message = `🔧 *User-Agent 配置状态*\n\n`;
+        message += `📊 *总体状态*：\n`;
+        message += `• *功能状态*：${stats.enabled ? '✅ 已启用' : '❌ 已禁用'}\n`;
+        message += `• *默认User-Agent*：\`${stats.defaultUserAgent}\`\n`;
+        message += `• *配置服务器数量*：${stats.serverCount}\n\n`;
+        
+        if (Object.keys(allUserAgents).length === 0) {
+            message += `📋 *服务器配置*：\n`;
+            message += `暂无服务器User-Agent配置\n\n`;
+        } else {
+            message += `📋 *服务器配置*：\n`;
+            for (const [server, config] of Object.entries(allUserAgents)) {
+                const createdDate = new Date(config.createdAt).toLocaleDateString();
+                message += `🌐 *服务器*：\`${server}\`\n`;
+                message += `   *User-Agent*：\`${config.userAgent}\`\n`;
+                message += `   *创建时间*：${createdDate}\n\n`;
+            }
+        }
+        
+        message += `💡 *提示*：\n`;
+        message += `• 使用 \`/admin useragent set\` 添加新配置\n`;
+        message += `• 使用 \`/admin useragent ${stats.enabled ? 'disable' : 'enable'}\` ${stats.enabled ? '禁用' : '启用'}验证`;
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+    }
+    
+    async setUserAgent(msg, telegramBotManager, args) {
+        if (args.length < 2) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin useragent set <服务器URL> <User-Agent>\`
+
+*示例*：
+\`/admin useragent set example.com judy/8.8.8\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const serverUrl = args[0];
+        const userAgent = args.slice(1).join(' ');
+        
+        const userAgentManager = this.userManager.channelManager?.getUserAgentManager();
+        if (!userAgentManager) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ User-Agent管理器不可用', {}, msg);
+            return;
+        }
+        
+        try {
+            userAgentManager.setServerUserAgent(serverUrl, userAgent);
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *User-Agent设置成功*
+
+🌐 *服务器*：\`${serverUrl}\`
+🔧 *User-Agent*：\`${userAgent}\`
+
+⚠️ *重要提醒*：
+• 用户必须使用指定的User-Agent才能观看此服务器的直播
+• 如果功能未启用，请使用 \`/admin useragent enable\` 启用验证`, { parse_mode: 'Markdown' }, msg);
+            
+            this.logger.info(`管理员 ${msg.from.id} 设置服务器 ${serverUrl} 的User-Agent: ${userAgent}`);
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *设置失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
+    }
+    
+    async removeUserAgent(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin useragent remove <服务器URL>\`
+
+*示例*：
+\`/admin useragent remove example.com\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const serverUrl = args[0];
+        
+        const userAgentManager = this.userManager.channelManager?.getUserAgentManager();
+        if (!userAgentManager) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ User-Agent管理器不可用', {}, msg);
+            return;
+        }
+        
+        try {
+            const success = userAgentManager.removeServerUserAgent(serverUrl);
+            
+            if (success) {
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *User-Agent配置已移除*
+
+🌐 *服务器*：\`${serverUrl}\`
+🔄 *状态*：该服务器不再需要特定User-Agent验证`, { parse_mode: 'Markdown' }, msg);
+                
+                this.logger.info(`管理员 ${msg.from.id} 移除了服务器 ${serverUrl} 的User-Agent配置`);
+            } else {
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⚠️ *未找到配置*
+
+🌐 *服务器*：\`${serverUrl}\`
+❌ *状态*：该服务器没有User-Agent配置`, { parse_mode: 'Markdown' }, msg);
+            }
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *移除失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
+    }
+    
+    async enableUserAgent(msg, telegramBotManager) {
+        try {
+            const ConfigManager = require('../../utils/ConfigManager');
+            const configManager = new ConfigManager();
+            configManager.set('userAgent.enabled', true);
+            
+            // 更新当前配置
+            this.config.userAgent = this.config.userAgent || {};
+            this.config.userAgent.enabled = true;
+            
+            // 更新ChannelManager的配置
+            if (this.userManager.channelManager) {
+                this.userManager.channelManager.updateConfig(this.config);
+            }
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *User-Agent验证已启用*
+
+🔒 *安全状态*：已启用
+⚠️ *重要提醒*：
+• 用户必须使用指定的User-Agent才能观看直播
+• 不匹配的请求将被拒绝
+• 请确保已为相关服务器配置User-Agent
+
+💡 *查看配置*：使用 \`/admin useragent list\` 查看当前配置`, { parse_mode: 'Markdown' }, msg);
+            
+            this.logger.info(`管理员 ${msg.from.id} 启用了User-Agent验证`);
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *启用失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
+    }
+    
+    async disableUserAgent(msg, telegramBotManager) {
+        try {
+            const ConfigManager = require('../../utils/ConfigManager');
+            const configManager = new ConfigManager();
+            configManager.set('userAgent.enabled', false);
+            
+            // 更新当前配置
+            this.config.userAgent = this.config.userAgent || {};
+            this.config.userAgent.enabled = false;
+            
+            // 更新ChannelManager的配置
+            if (this.userManager.channelManager) {
+                this.userManager.channelManager.updateConfig(this.config);
+            }
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *User-Agent验证已禁用*
+
+🔓 *安全状态*：已禁用
+⚠️ *重要提醒*：
+• 用户可以使用任何User-Agent观看直播
+• 不会进行User-Agent验证
+• 服务器配置保持不变
+
+💡 *重新启用*：使用 \`/admin useragent enable\` 重新启用验证`, { parse_mode: 'Markdown' }, msg);
+            
+            this.logger.info(`管理员 ${msg.from.id} 禁用了User-Agent验证`);
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *禁用失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
+    }
+    
+    async setDefaultUserAgent(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin useragent default <User-Agent>\`
+
+*示例*：
+\`/admin useragent default judy/8.8.8\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const userAgent = args.join(' ');
+        
+        try {
+            const ConfigManager = require('../../utils/ConfigManager');
+            const configManager = new ConfigManager();
+            configManager.set('userAgent.defaultUserAgent', userAgent);
+            
+            // 更新当前配置
+            this.config.userAgent = this.config.userAgent || {};
+            this.config.userAgent.defaultUserAgent = userAgent;
+            
+            // 更新ChannelManager的配置
+            if (this.userManager.channelManager) {
+                this.userManager.channelManager.updateConfig(this.config);
+            }
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *默认User-Agent设置成功*
+
+🔧 *默认User-Agent*：\`${userAgent}\`
+
+💡 *说明*：
+• 当服务器没有特定User-Agent配置时，将使用此默认值
+• 仅在User-Agent验证启用时生效
+• 可以为特定服务器设置不同的User-Agent覆盖默认值`, { parse_mode: 'Markdown' }, msg);
+            
+            this.logger.info(`管理员 ${msg.from.id} 设置默认User-Agent: ${userAgent}`);
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *设置失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
     }
 }
 

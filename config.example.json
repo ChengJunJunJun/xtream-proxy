@@ -1,0 +1,65 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  },
+  "originalServer": {
+    "url": "http://example.com",
+    "m3uPath": "/tv.m3u",
+    "timeout": 10000,
+    "autoRefreshInterval": 7200000,
+    "enableAutoRefresh": true
+  },
+  "telegram": {
+    "botToken": "YOUR_BOT_TOKEN_HERE",
+    "groupId": "YOUR_GROUP_ID_HERE",
+    "adminUserId": "YOUR_ADMIN_USER_ID_HERE",
+    "adminUserIds": [],
+    "tokenExpiry": 600000,
+    "maxTokensPerUser": 2,
+    "tokenGenerationPeriod": 86400000
+  },
+  "users": {},
+  "security": {
+    "connectionTimeout": 60000,
+    "cleanupInterval": 20000,
+    "enableLogging": false,
+    "allowedIPs": [],
+    "blockedIPs": [],
+    "enableIPBinding": false,
+    "redirectTokenExpiry": 7200000,
+    "maxTokenUsage": 3
+  },
+  "features": {
+    "enableAdmin": true,
+    "enableStatus": true,
+    "enableEPG": true,
+    "cacheChannels": true,
+    "channelRefreshInterval": 3600000,
+    "enableTelegramBot": false,
+    "filterChannels": {
+      "enabled": false,
+      "blacklistKeywords": [],
+      "whitelistKeywords": []
+    }
+  },
+  "playlist": {
+    "refreshLimitPeriod": 18000000,
+    "maxRefreshesBeforeExpiry": 6,
+    "maxSimultaneousPlaylists": 3,
+    "defaultLinkExpiry": 31536000000,
+    "enablePersistentStorage": true,
+    "persistentStorageCleanupInterval": 86400000,
+    "enablePermanentUsers": false,
+    "userLinkExpiry": 86400000,
+    "expiryNotificationHours": [24, 12, 1],
+    "streamInactiveThreshold": 300000,
+    "maxHourlyRefreshLimit": 10
+  },
+  "userAgent": {
+    "enabled": false,
+    "defaultUserAgent": "judy/8.8.8",
+    "channels": {},
+    "enforceValidation": true
+  }
+} 

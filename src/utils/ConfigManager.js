@@ -82,6 +82,12 @@ class ConfigManager {
                 expiryNotificationHours: [24, 12, 1],
                 streamInactiveThreshold: 300000,
                 maxHourlyRefreshLimit: 10
+            },
+            userAgent: {
+                enabled: false,
+                defaultUserAgent: 'judy/8.8.8',
+                channels: {},
+                enforceValidation: true
             }
         };
     }

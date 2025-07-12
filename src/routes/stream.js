@@ -39,6 +39,21 @@ module.exports = (userManager, channelManager, securityManager, config) => {
                 return res.status(404).send('Stream not found');
             }
             
+            // 验证 User-Agent
+            const userAgentManager = channelManager.getUserAgentManager();
+            const requestUserAgent = req.headers['user-agent'];
+            
+            if (!userAgentManager.validateUserAgent(channel.url, requestUserAgent)) {
+                console.log(`🚫 User-Agent validation failed for ${username} -> ${channel.url}`);
+                console.log(`   Required: ${userAgentManager.getServerUserAgent(channel.url)}`);
+                console.log(`   Received: ${requestUserAgent}`);
+                userManager.removeStreamConnection(username, streamId, clientIP);
+                return res.status(403).json({
+                    error: 'Invalid User-Agent',
+                    message: 'Your player User-Agent is not authorized for this stream'
+                });
+            }
+            
             console.log(`🔄 Redirecting ${username} to: ${channel.url}`);
             
             // 302重定向到原始流URL
@@ -77,6 +92,21 @@ module.exports = (userManager, channelManager, securityManager, config) => {
                 return res.status(429).json({
                     error: 'Concurrent stream limit exceeded', 
                     message: `Maximum ${maxDevices} devices can stream simultaneously per user`
+                });
+            }
+            
+            // 验证 User-Agent
+            const userAgentManager = channelManager.getUserAgentManager();
+            const requestUserAgent = req.headers['user-agent'];
+            
+            if (!userAgentManager.validateUserAgent(payload.url, requestUserAgent)) {
+                console.log(`🚫 User-Agent validation failed for ${username} -> ${payload.url}`);
+                console.log(`   Required: ${userAgentManager.getServerUserAgent(payload.url)}`);
+                console.log(`   Received: ${requestUserAgent}`);
+                userManager.removeStreamConnection(username, payload.channelId, clientIP);
+                return res.status(403).json({
+                    error: 'Invalid User-Agent',
+                    message: 'Your player User-Agent is not authorized for this stream'
                 });
             }
             

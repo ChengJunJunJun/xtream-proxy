@@ -1,11 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const UserAgentManager = require('./UserAgentManager');
 
 class ChannelManager {
     constructor(config, logger) {
         this.config = config;
         this.logger = logger;
+        
+        // 初始化 UserAgentManager
+        this.userAgentManager = new UserAgentManager(config, logger);
         
         this.channels = [];
         this.categories = [];
@@ -321,8 +325,14 @@ class ChannelManager {
         return this.channels;
     }
     
+    getUserAgentManager() {
+        return this.userAgentManager;
+    }
+    
     updateConfig(newConfig) {
         this.config = newConfig;
+        // 同时更新 UserAgentManager 的配置
+        this.userAgentManager.updateConfig(newConfig);
         this.logger.info('ChannelManager configuration updated');
     }
 
