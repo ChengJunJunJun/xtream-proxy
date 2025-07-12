@@ -134,23 +134,52 @@ class UserAgentManager {
      * 验证请求的 User-Agent
      * @param {string} channelUrl - 频道URL
      * @param {string} requestUserAgent - 请求中的 User-Agent
-     * @returns {boolean} 是否验证通过
+     * @returns {Object} 验证结果 {valid: boolean, fallbackUrl?: string}
      */
     validateUserAgent(channelUrl, requestUserAgent) {
         // 如果功能未启用，始终通过验证
         if (!this.config.userAgent?.enabled) {
-            return true;
+            return { valid: true };
         }
         
         const requiredUserAgent = this.getServerUserAgent(channelUrl);
         
         // 如果没有设置 User-Agent 要求，通过验证
         if (!requiredUserAgent) {
-            return true;
+            return { valid: true };
         }
         
         // 检查请求的 User-Agent 是否匹配
-        return requestUserAgent === requiredUserAgent;
+        const isValid = requestUserAgent === requiredUserAgent;
+        
+        if (!isValid && this.config.userAgent?.fallbackUrl) {
+            return { 
+                valid: false, 
+                fallbackUrl: this.config.userAgent.fallbackUrl 
+            };
+        }
+        
+        return { valid: isValid };
+    }
+    
+    /**
+     * 获取回退URL
+     * @returns {string|null} 回退URL
+     */
+    getFallbackUrl() {
+        return this.config.userAgent?.fallbackUrl || null;
+    }
+    
+    /**
+     * 设置回退URL
+     * @param {string} url - 回退URL
+     */
+    setFallbackUrl(url) {
+        if (!this.config.userAgent) {
+            this.config.userAgent = {};
+        }
+        this.config.userAgent.fallbackUrl = url;
+        this.logger.info(`Set fallback URL: ${url}`);
     }
     
     /**
@@ -169,6 +198,7 @@ class UserAgentManager {
         return {
             enabled: this.config.userAgent?.enabled || false,
             defaultUserAgent: this.config.userAgent?.defaultUserAgent || 'Not set',
+            fallbackUrl: this.config.userAgent?.fallbackUrl || 'Not set',
             serverCount: Object.keys(this.userAgents).length,
             servers: Object.keys(this.userAgents)
         };

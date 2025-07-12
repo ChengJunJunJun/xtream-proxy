@@ -612,6 +612,9 @@ class AdminHandler {
             case 'default':
                 await this.setDefaultUserAgent(msg, telegramBotManager, args.slice(1));
                 break;
+            case 'fallback':
+                await this.setFallbackUrl(msg, telegramBotManager, args.slice(1));
+                break;
             default:
                 await this.showUserAgentHelp(msg, telegramBotManager);
         }
@@ -627,16 +630,18 @@ class AdminHandler {
 • \`/admin useragent enable\` - 启用User-Agent验证
 • \`/admin useragent disable\` - 禁用User-Agent验证
 • \`/admin useragent default <User-Agent>\` - 设置默认User-Agent
+• \`/admin useragent fallback <回退URL>\` - 设置验证失败时的回退视频
 
 💡 *使用示例*：
 • \`/admin useragent set example.com judy/8.8.8\`
 • \`/admin useragent remove example.com\`
 • \`/admin useragent default judy/8.8.8\`
+• \`/admin useragent fallback https://example.com/fallback.m3u8\`
 
 ⚠️ *注意*：
 • 每个服务器只需要设置一个User-Agent
 • 用户必须使用指定的User-Agent才能观看直播
-• 启用验证后，不匹配的请求将被拒绝`;
+• 验证失败时会自动跳转到回退视频（如已设置）`;
         
         await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
     }
@@ -655,6 +660,7 @@ class AdminHandler {
         message += `📊 *总体状态*：\n`;
         message += `• *功能状态*：${stats.enabled ? '✅ 已启用' : '❌ 已禁用'}\n`;
         message += `• *默认User-Agent*：\`${stats.defaultUserAgent}\`\n`;
+        message += `• *回退视频URL*：\`${stats.fallbackUrl}\`\n`;
         message += `• *配置服务器数量*：${stats.serverCount}\n\n`;
         
         if (Object.keys(allUserAgents).length === 0) {
@@ -861,6 +867,81 @@ class AdminHandler {
 • 可以为特定服务器设置不同的User-Agent覆盖默认值`, { parse_mode: 'Markdown' }, msg);
             
             this.logger.info(`管理员 ${msg.from.id} 设置默认User-Agent: ${userAgent}`);
+            
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *设置失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);
+        }
+    }
+    
+    async setFallbackUrl(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            const userAgentManager = this.userManager.channelManager?.getUserAgentManager();
+            const currentFallbackUrl = userAgentManager ? userAgentManager.getFallbackUrl() : '未设置';
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `🎬 *回退视频URL管理*
+
+🔗 *当前回退URL*：
+\`${currentFallbackUrl || '未设置'}\`
+
+💡 *功能说明*：
+• 当用户的User-Agent验证失败时，自动跳转到此视频
+• 用户将直接播放回退视频而不是收到错误信息
+• 提供更好的用户体验
+
+📝 *使用方法*：
+\`/admin useragent fallback <视频URL>\`
+
+🎯 *示例*：
+\`/admin useragent fallback https://smart.pendy.dpdns.org/judy/output.m3u8\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const fallbackUrl = args.join(' ');
+        
+        // 验证URL格式
+        if (!this.isValidUrl(fallbackUrl)) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *无效的URL格式*
+
+请提供有效的HTTP/HTTPS链接，例如：
+\`https://smart.pendy.dpdns.org/judy/output.m3u8\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const userAgentManager = this.userManager.channelManager?.getUserAgentManager();
+        if (!userAgentManager) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, '❌ User-Agent管理器不可用', {}, msg);
+            return;
+        }
+        
+        try {
+            const ConfigManager = require('../../utils/ConfigManager');
+            const configManager = new ConfigManager();
+            configManager.set('userAgent.fallbackUrl', fallbackUrl);
+            
+            // 更新当前配置
+            this.config.userAgent = this.config.userAgent || {};
+            this.config.userAgent.fallbackUrl = fallbackUrl;
+            
+            // 更新ChannelManager的配置
+            if (this.userManager.channelManager) {
+                this.userManager.channelManager.updateConfig(this.config);
+            }
+            
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *回退视频URL设置成功*
+
+🎬 *回退URL*：\`${fallbackUrl}\`
+
+💡 *效果说明*：
+• 当用户User-Agent验证失败时，将自动跳转到此视频
+• 用户不会看到错误信息，而是直接播放回退视频
+• 提供更流畅的用户体验
+
+⚠️ *注意*：
+• 确保回退视频URL可正常访问
+• 建议使用稳定可靠的视频源
+• 此功能仅在User-Agent验证启用时生效`, { parse_mode: 'Markdown' }, msg);
+            
+            this.logger.info(`管理员 ${msg.from.id} 设置回退URL: ${fallbackUrl}`);
             
         } catch (error) {
             await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *设置失败*：${error.message}`, { parse_mode: 'Markdown' }, msg);

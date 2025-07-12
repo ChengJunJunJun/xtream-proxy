@@ -42,11 +42,20 @@ module.exports = (userManager, channelManager, securityManager, config) => {
             // 验证 User-Agent
             const userAgentManager = channelManager.getUserAgentManager();
             const requestUserAgent = req.headers['user-agent'];
+            const validationResult = userAgentManager.validateUserAgent(channel.url, requestUserAgent);
             
-            if (!userAgentManager.validateUserAgent(channel.url, requestUserAgent)) {
+            if (!validationResult.valid) {
                 console.log(`🚫 User-Agent validation failed for ${username} -> ${channel.url}`);
                 console.log(`   Required: ${userAgentManager.getServerUserAgent(channel.url)}`);
                 console.log(`   Received: ${requestUserAgent}`);
+                
+                // 如果有回退URL，重定向到回退URL而不是拒绝访问
+                if (validationResult.fallbackUrl) {
+                    console.log(`🔄 Redirecting ${username} to fallback URL: ${validationResult.fallbackUrl}`);
+                    userManager.removeStreamConnection(username, streamId, clientIP);
+                    return res.redirect(302, validationResult.fallbackUrl);
+                }
+                
                 userManager.removeStreamConnection(username, streamId, clientIP);
                 return res.status(403).json({
                     error: 'Invalid User-Agent',
@@ -98,11 +107,20 @@ module.exports = (userManager, channelManager, securityManager, config) => {
             // 验证 User-Agent
             const userAgentManager = channelManager.getUserAgentManager();
             const requestUserAgent = req.headers['user-agent'];
+            const validationResult = userAgentManager.validateUserAgent(payload.url, requestUserAgent);
             
-            if (!userAgentManager.validateUserAgent(payload.url, requestUserAgent)) {
+            if (!validationResult.valid) {
                 console.log(`🚫 User-Agent validation failed for ${username} -> ${payload.url}`);
                 console.log(`   Required: ${userAgentManager.getServerUserAgent(payload.url)}`);
                 console.log(`   Received: ${requestUserAgent}`);
+                
+                // 如果有回退URL，重定向到回退URL而不是拒绝访问
+                if (validationResult.fallbackUrl) {
+                    console.log(`🔄 Redirecting ${username} to fallback URL: ${validationResult.fallbackUrl}`);
+                    userManager.removeStreamConnection(username, payload.channelId, clientIP);
+                    return res.redirect(302, validationResult.fallbackUrl);
+                }
+                
                 userManager.removeStreamConnection(username, payload.channelId, clientIP);
                 return res.status(403).json({
                     error: 'Invalid User-Agent',

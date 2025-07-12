@@ -87,7 +87,8 @@ class ConfigManager {
                 enabled: false,
                 defaultUserAgent: 'judy/8.8.8',
                 channels: {},
-                enforceValidation: true
+                enforceValidation: true,
+                fallbackUrl: 'https://smart.pendy.dpdns.org/judy/output.m3u8'
             }
         };
     }

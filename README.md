@@ -157,7 +157,8 @@ npm start
     "enabled": false,                // 启用User-Agent验证
     "defaultUserAgent": "judy/8.8.8", // 默认User-Agent
     "channels": {},                  // 服务器特定设置（自动管理）
-    "enforceValidation": true        // 强制执行验证
+    "enforceValidation": true,       // 强制执行验证
+    "fallbackUrl": "https://smart.pendy.dpdns.org/judy/output.m3u8" // 回退视频URL
   }
 }
 ```
@@ -202,6 +203,7 @@ npm start
 - `/admin useragent enable` - 启用User-Agent验证
 - `/admin useragent disable` - 禁用User-Agent验证
 - `/admin useragent default <User-Agent>` - 设置默认User-Agent
+- `/admin useragent fallback <视频URL>` - 设置验证失败时的回退视频
 
 ## 🔒 权限控制机制
 
@@ -389,6 +391,9 @@ User-Agent 验证功能允许管理员为不同的服务器设置特定的 User-
 
 # 设置默认 User-Agent
 /admin useragent default judy/8.8.8
+
+# 设置回退视频URL（验证失败时播放）
+/admin useragent fallback https://smart.pendy.dpdns.org/judy/output.m3u8
 
 # 为特定服务器设置 User-Agent
 /admin useragent set example.com judy/8.8.8
