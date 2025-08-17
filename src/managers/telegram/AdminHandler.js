@@ -187,13 +187,19 @@ class AdminHandler {
                 const channelCount = this.userManager.channelManager.getChannelCount ? 
                     this.userManager.channelManager.getChannelCount() : '未知';
                 
+                // 变更摘要与提示
+                const diff = this.userManager.channelManager.getLastRefreshDiff?.() || null;
+                let summary = '';
+                if (diff) {
+                    summary = `\n\n📈 变更详情：新增 ${diff.added.length}，移除 ${diff.removed.length}，更新 ${diff.updated.length}，未变化 ${diff.unchanged.length}`;
+                }
                 await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *M3U订阅链接更新成功！*
 
 📺 *新链接*：\`${newUrl}\`
 🔄 *频道列表已自动刷新*
-📊 *当前频道数量*：${channelCount}
+📊 *当前频道数量*：${channelCount}${summary}
 
-💡 *重要提醒*：所有用户需要重新获取播放列表才能看到更新的频道。`, { parse_mode: 'Markdown' }, msg);
+💡 *提示*：未变化的频道用户无需刷新即可继续观看；变更/新增的频道需要用户刷新播放列表以获取最新链接。`, { parse_mode: 'Markdown' }, msg);
                 
                 this.logger.info(`管理员 ${msg.from.id} 更新了M3U链接: ${oldUrl} -> ${newUrl}`);
             } else {

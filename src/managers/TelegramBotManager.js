@@ -859,13 +859,19 @@ class TelegramBotManager {
                     await this.userManager.channelManager.refreshChannels();
                     const newChannelCount = this.userManager.channelManager.getChannelCount();
                     
+                    const diff = this.userManager.channelManager.getLastRefreshDiff?.() || null;
+                    let summary = '';
+                    if (diff) {
+                        summary = `
+📈 变更详情：新增 ${diff.added.length}，移除 ${diff.removed.length}，更新 ${diff.updated.length}，未变化 ${diff.unchanged.length}`;
+                    }
                     const message = `🔄 自动刷新完成
 
-📺 频道数量：${oldChannelCount} → ${newChannelCount}
+📺 频道数量：${oldChannelCount} → ${newChannelCount}${summary}
 ⏰ 刷新时间：${new Date().toLocaleString()}
 🔗 当前链接：${this.config.originalServer?.url || '未设置'}
 
-💡 所有用户需要重新获取播放列表才能看到更新的频道。`;
+💡 提示：未变化的频道无需刷新订阅即可继续观看；仅当频道有更新或新增时，用户才需要刷新播放列表以获取最新链接。`;
                     
                     // 通知所有管理员
                     await this.notifyAdmins(message);

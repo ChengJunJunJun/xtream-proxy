@@ -443,7 +443,7 @@ class UserManager {
         let playlist = '#EXTM3U\n';
         
         channels.forEach(channel => {
-            // 生成加密的频道链接
+            // 生成加密的频道链接（使用配置的默认过期时间，确保未变更频道在自动刷新后仍可观看）
             const encryptedUrl = this.generateEncryptedChannelUrl(channel.url, username, channel.id, clientIP);
             
             playlist += `#EXTINF:-1 tvg-id="${channel.id}" tvg-name="${channel.name}" tvg-logo="${channel.logo}" group-title="${channel.category}",${channel.name}\n`;
@@ -458,7 +458,7 @@ class UserManager {
         let playlist = `#EXTM3U x-tvg-url="${serverUrl}/xmltv.php"\n`;
         
         channels.forEach(channel => {
-            // 生成加密的频道链接
+            // 生成加密的频道链接（使用配置的默认过期时间）
             const encryptedUrl = this.generateEncryptedChannelUrl(channel.url, username, channel.id, clientIP);
             
             const extinf = `#EXTINF:-1`;
@@ -478,10 +478,10 @@ class UserManager {
         return playlist;
     }
 
-    // 生成加密的频道链接 - 修改参数，不传递clientIP到加密函数
+    // 生成加密的频道链接 - 不将clientIP写入token（仅用于并发验证用payload.channelId即可）
     generateEncryptedChannelUrl(originalUrl, username, channelId, clientIP) {
         const serverUrl = this.getServerUrl();
-        const encryptedToken = this.encryptChannelUrl(originalUrl, username, channelId, 120);
+        const encryptedToken = this.encryptChannelUrl(originalUrl, username, channelId);
         const encryptedUrl = `${serverUrl}/live/encrypted/${encryptedToken}?username=${username}`;
         return encryptedUrl;
     }
@@ -495,13 +495,14 @@ class UserManager {
         return this.encryptionKeyBuffer;
     }
 
-    // 修改加密函数，移除clientIP参数
-    encryptChannelUrl(originalUrl, username, channelId, expiryMinutes = 120) {
+    // 使用配置的默认过期时间（毫秒）来生成token，避免因自动刷新导致未变更频道无法继续观看
+    encryptChannelUrl(originalUrl, username, channelId) {
+        const defaultExpiryMs = this.config.playlist?.defaultLinkExpiry || 31536000000; // 默认1年
         const payload = {
             url: originalUrl,
             username: username,
             channelId: channelId,
-            expiresAt: Date.now() + (expiryMinutes * 60 * 1000),
+            expiresAt: Date.now() + defaultExpiryMs,
             tokenId: uuidv4()
         };
         

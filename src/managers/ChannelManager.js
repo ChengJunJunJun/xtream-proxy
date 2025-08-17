@@ -14,6 +14,7 @@ class ChannelManager {
         this.channels = [];
         this.categories = [];
         this.lastRefresh = 0;
+        this.lastRefreshDiff = null;
         
         // 数据文件路径
         this.dataDir = path.join(__dirname, '../../data');
@@ -73,7 +74,9 @@ class ChannelManager {
     async refreshChannels() {
         try {
             this.logger.info('Refreshing channels from original server...');
-            
+            // 在刷新前保留旧频道用于对比
+            const previousChannels = Array.isArray(this.channels) ? [...this.channels] : [];
+
             const response = await axios.get(
                 `${this.config.originalServer.url}${this.config.originalServer.m3uPath}`,
                 {
@@ -88,6 +91,9 @@ class ChannelManager {
             this.channels = channelData.channels;
             this.categories = channelData.categories;
             this.lastRefresh = Date.now();
+
+            // 计算刷新前后的差异
+            this.lastRefreshDiff = this.computeChannelDiff(previousChannels, this.channels);
             
             // 应用频道过滤
             if (this.config.features.filterChannels?.enabled) {
@@ -100,7 +106,10 @@ class ChannelManager {
             }
             
             this.logger.success(`Successfully loaded ${this.channels.length} channels from ${this.categories.length} categories`);
-            
+            if (this.lastRefreshDiff) {
+                const { added, removed, updated, unchanged } = this.lastRefreshDiff;
+                this.logger.info(`Channel diff - added: ${added.length}, removed: ${removed.length}, updated: ${updated.length}, unchanged: ${unchanged.length}`);
+            }
         } catch (error) {
             this.logger.error('Error refreshing channels:', error);
             
@@ -109,6 +118,49 @@ class ChannelManager {
                 this.createSampleChannels();
             }
         }
+    }
+
+    // 计算频道差异（基于名称或tvgId作为键，比较URL是否变化）
+    computeChannelDiff(previousChannels, newChannels) {
+        const toKey = (c) => (c && (c.tvgId || c.name || '').toString().toLowerCase());
+        const prevMap = new Map();
+        const newMap = new Map();
+        const added = [];
+        const removed = [];
+        const updated = [];
+        const unchanged = [];
+
+        for (const c of previousChannels || []) {
+            const key = toKey(c);
+            if (key) prevMap.set(key, c);
+        }
+        for (const c of newChannels || []) {
+            const key = toKey(c);
+            if (key) newMap.set(key, c);
+        }
+
+        // 检查新增和更新/未变
+        for (const [key, newC] of newMap.entries()) {
+            if (!prevMap.has(key)) {
+                added.push(newC);
+            } else {
+                const prevC = prevMap.get(key);
+                if ((prevC.url || '') !== (newC.url || '')) {
+                    updated.push({ before: prevC, after: newC });
+                } else {
+                    unchanged.push(newC);
+                }
+            }
+        }
+
+        // 检查移除
+        for (const [key, prevC] of prevMap.entries()) {
+            if (!newMap.has(key)) {
+                removed.push(prevC);
+            }
+        }
+
+        return { added, removed, updated, unchanged };
     }
     
     parseM3UContent(content) {
@@ -323,6 +375,10 @@ class ChannelManager {
         // 这里可以根据用户权限返回不同的频道列表
         // 目前返回所有频道
         return this.channels;
+    }
+
+    getLastRefreshDiff() {
+        return this.lastRefreshDiff;
     }
     
     getUserAgentManager() {
