@@ -5,6 +5,7 @@
   },
   "originalServer": {
     "url": "http://example.com",
+    "urls": [],
     "m3uPath": "/tv.m3u",
     "timeout": 10000,
     "autoRefreshInterval": 7200000,

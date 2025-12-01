@@ -13,6 +13,7 @@ class ConfigManager {
             if (fs.existsSync(this.configPath)) {
                 const configData = fs.readFileSync(this.configPath, 'utf8');
                 this.config = JSON.parse(configData);
+                this.migrateConfig();
                 console.log('✅ Configuration loaded successfully');
             } else {
                 console.warn('⚠️  Config file not found, using default configuration');
@@ -24,6 +25,55 @@ class ConfigManager {
         }
     }
     
+    // 迁移旧配置到新格式
+    migrateConfig() {
+        if (!this.config.originalServer) {
+            return;
+        }
+        
+        // 如果没有 urls 字段，则初始化为空数组
+        if (!this.config.originalServer.urls) {
+            this.config.originalServer.urls = [];
+        }
+        
+        // 如果有旧的 url 字段且不在 urls 数组中，将其添加到 urls
+        if (this.config.originalServer.url && 
+            this.config.originalServer.url !== 'http://example.com' &&
+            this.config.originalServer.url !== '') {
+            
+            // 检查是否已存在于 urls 数组中
+            const existingUrl = this.config.originalServer.urls.find(
+                item => (typeof item === 'string' ? item : item.url) === this.config.originalServer.url
+            );
+            
+            if (!existingUrl) {
+                // 将单个 url 转换为数组格式
+                this.config.originalServer.urls.push({
+                    url: this.config.originalServer.url,
+                    name: 'Default Source',
+                    enabled: true
+                });
+                console.log('📝 Migrated single URL to multi-source format');
+            }
+        }
+        
+        // 标准化 urls 数组格式
+        this.config.originalServer.urls = this.config.originalServer.urls.map((item, index) => {
+            if (typeof item === 'string') {
+                return {
+                    url: item,
+                    name: `Source ${index + 1}`,
+                    enabled: true
+                };
+            }
+            return {
+                url: item.url || '',
+                name: item.name || `Source ${index + 1}`,
+                enabled: item.enabled !== undefined ? item.enabled : true
+            };
+        });
+    }
+    
     getDefaultConfig() {
         return {
             server: {
@@ -31,7 +81,9 @@ class ConfigManager {
                 host: '0.0.0.0'
             },
             originalServer: {
+                // 支持单个URL（向后兼容）或多个URL数组
                 url: 'http://example.com',
+                urls: [],  // 多个订阅源URLs
                 m3uPath: '/tv.m3u',
                 timeout: 10000,
                 autoRefreshInterval: 7200000,

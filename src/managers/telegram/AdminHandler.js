@@ -26,6 +26,9 @@ class AdminHandler {
             case 'changem3u':
                 await this.handleChangeM3U(msg, telegramBotManager, args.slice(1));
                 break;
+            case 'sources':
+                await this.handleSources(msg, telegramBotManager, args.slice(1));
+                break;
             case 'limitexceeded':
                 await this.handleLimitExceeded(msg, telegramBotManager, args.slice(1));
                 break;
@@ -46,13 +49,16 @@ class AdminHandler {
 • /admin stats - 查看系统统计
 • /admin users - 查看用户列表
 • /admin cleanup - 清理过期数据
+• /admin sources - 管理多个订阅源
 • /admin limitexceeded - 管理令牌限制超额用户
 • /admin blacklist - 管理黑名单
 • /admin useragent - 管理User-Agent设置
-• /changem3u <新的M3U链接> - 修改M3U订阅链接
+• /changem3u <新的M3U链接> - 修改M3U订阅链接（旧版兼容）
 
 使用示例：
 • /admin stats
+• /admin sources list
+• /admin sources add <URL> <名称>
 • /admin limitexceeded
 • /admin blacklist list
 • /admin useragent list
@@ -253,6 +259,370 @@ class AdminHandler {
         Object.assign(this.config, updatedConfig);
         
         this.logger.info(`M3U URL updated to: ${newUrl}`);
+    }
+    
+    // 多订阅源管理
+    async handleSources(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            await this.showSourcesHelp(msg, telegramBotManager);
+            return;
+        }
+        
+        const action = args[0].toLowerCase();
+        
+        try {
+            switch (action) {
+                case 'list':
+                    await this.listSources(msg, telegramBotManager);
+                    break;
+                case 'add':
+                    await this.addSource(msg, telegramBotManager, args.slice(1));
+                    break;
+                case 'remove':
+                    await this.removeSource(msg, telegramBotManager, args.slice(1));
+                    break;
+                case 'enable':
+                    await this.toggleSource(msg, telegramBotManager, args.slice(1), true);
+                    break;
+                case 'disable':
+                    await this.toggleSource(msg, telegramBotManager, args.slice(1), false);
+                    break;
+                case 'rename':
+                    await this.renameSource(msg, telegramBotManager, args.slice(1));
+                    break;
+                case 'refresh':
+                    await this.refreshSources(msg, telegramBotManager);
+                    break;
+                default:
+                    await this.showSourcesHelp(msg, telegramBotManager);
+            }
+        } catch (error) {
+            this.logger.error('订阅源操作失败:', error);
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 订阅源操作失败：${error.message}`, {}, msg);
+        }
+    }
+    
+    async showSourcesHelp(msg, telegramBotManager) {
+        const help = `📺 *多订阅源管理帮助*
+
+📋 *可用命令*：
+• \`/admin sources list\` - 查看所有订阅源
+• \`/admin sources add <URL> <名称>\` - 添加新订阅源
+• \`/admin sources remove <索引>\` - 移除订阅源
+• \`/admin sources enable <索引>\` - 启用订阅源
+• \`/admin sources disable <索引>\` - 禁用订阅源
+• \`/admin sources rename <索引> <新名称>\` - 重命名订阅源
+• \`/admin sources refresh\` - 刷新所有订阅源
+
+💡 *使用示例*：
+• \`/admin sources add https://example.com/tv.m3u 测试源\`
+• \`/admin sources remove 2\`
+• \`/admin sources enable 1\`
+• \`/admin sources rename 1 新名称\`
+
+⚠️ *注意事项*：
+• 多个订阅源的频道会自动合并
+• 每个源的频道都有唯一ID
+• 禁用的源不会加载频道
+• 修改后会自动刷新频道列表`;
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, help, { parse_mode: 'Markdown' }, msg);
+    }
+    
+    async listSources(msg, telegramBotManager) {
+        const sources = this.config.originalServer?.urls || [];
+        const serverInfo = this.userManager.channelManager?.getServerInfo?.() || {};
+        const sourceStats = serverInfo.sourceStats || {};
+        
+        if (sources.length === 0) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `📺 *订阅源管理*
+
+📝 当前没有配置订阅源
+
+💡 *开始使用*：
+使用 \`/admin sources add\` 添加第一个订阅源
+
+*示例*：
+\`/admin sources add https://example.com/tv.m3u 我的订阅源\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        let message = `📺 *订阅源列表* (${sources.length} 个)\n\n`;
+        
+        sources.forEach((source, index) => {
+            const status = source.enabled !== false ? '✅' : '❌';
+            const sourceId = `source_${index}`;
+            const stats = sourceStats[sourceId] || {};
+            
+            message += `${index + 1}. ${status} *${source.name || `源 ${index + 1}`}*\n`;
+            message += `   📡 URL: \`${source.url}\`\n`;
+            
+            if (stats.status === 'success') {
+                message += `   📊 频道: ${stats.channelCount} 个\n`;
+                message += `   📂 分类: ${stats.categoryCount} 个\n`;
+                const lastRefresh = new Date(stats.lastRefresh).toLocaleString('zh-CN');
+                message += `   🔄 更新: ${lastRefresh}\n`;
+            } else if (stats.status === 'failed') {
+                message += `   ❌ 错误: ${stats.error}\n`;
+            } else {
+                message += `   ⏳ 等待加载...\n`;
+            }
+            message += '\n';
+        });
+        
+        message += `📊 *总计*：\n`;
+        message += `• 总频道数：${serverInfo.channelCount || 0}\n`;
+        message += `• 总分类数：${serverInfo.categoryCount || 0}\n\n`;
+        message += `🛠️ *管理操作*：\n`;
+        message += `• \`/admin sources add\` - 添加新源\n`;
+        message += `• \`/admin sources remove <索引>\` - 移除源\n`;
+        message += `• \`/admin sources enable/disable <索引>\` - 启用/禁用源`;
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+    }
+    
+    async addSource(msg, telegramBotManager, args) {
+        if (args.length < 2) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin sources add <URL> <名称>\`
+
+*示例*：
+\`/admin sources add https://example.com/tv.m3u 测试源\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const url = args[0];
+        const name = args.slice(1).join(' ');
+        
+        // 验证URL格式
+        if (!this.isValidUrl(url)) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *无效的URL格式*
+
+请提供有效的HTTP/HTTPS链接`, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        // 确保配置结构存在
+        if (!this.config.originalServer) {
+            this.config.originalServer = {};
+        }
+        if (!this.config.originalServer.urls) {
+            this.config.originalServer.urls = [];
+        }
+        
+        // 检查URL是否已存在
+        const exists = this.config.originalServer.urls.some(s => s.url === url);
+        if (exists) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⚠️ 该URL已存在于订阅源列表中`, {}, msg);
+            return;
+        }
+        
+        // 添加新源
+        this.config.originalServer.urls.push({
+            url: url,
+            name: name,
+            enabled: true
+        });
+        
+        // 保存配置
+        const ConfigManager = require('../../utils/ConfigManager');
+        const configManager = new ConfigManager();
+        configManager.set('originalServer.urls', this.config.originalServer.urls);
+        
+        // 更新ChannelManager的配置
+        if (this.userManager.channelManager) {
+            this.userManager.channelManager.updateConfig(this.config);
+        }
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *订阅源添加成功*
+
+📺 *名称*：${name}
+📡 *URL*：\`${url}\`
+✅ *状态*：已启用
+
+⏳ 正在刷新频道列表，请稍候...`, { parse_mode: 'Markdown' }, msg);
+        
+        // 刷新频道列表
+        if (this.userManager.channelManager) {
+            try {
+                await this.userManager.channelManager.refreshChannels();
+                const channelCount = this.userManager.channelManager.getChannelCount();
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *频道列表刷新完成*
+
+📊 当前总频道数：${channelCount}`, {}, msg);
+            } catch (error) {
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⚠️ 频道刷新失败：${error.message}
+
+订阅源已添加，请稍后手动刷新`, {}, msg);
+            }
+        }
+        
+        this.logger.info(`管理员 ${msg.from.id} 添加了订阅源: ${name} (${url})`);
+    }
+    
+    async removeSource(msg, telegramBotManager, args) {
+        if (args.length === 0) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin sources remove <索引>\`
+
+*示例*：
+\`/admin sources remove 2\`
+
+先使用 \`/admin sources list\` 查看索引`, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const index = parseInt(args[0]) - 1;
+        const sources = this.config.originalServer?.urls || [];
+        
+        if (isNaN(index) || index < 0 || index >= sources.length) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 无效的索引号
+
+当前有 ${sources.length} 个订阅源，请使用 1-${sources.length} 之间的数字`, {}, msg);
+            return;
+        }
+        
+        const removedSource = sources[index];
+        sources.splice(index, 1);
+        
+        // 保存配置
+        const ConfigManager = require('../../utils/ConfigManager');
+        const configManager = new ConfigManager();
+        configManager.set('originalServer.urls', sources);
+        
+        // 更新ChannelManager的配置
+        if (this.userManager.channelManager) {
+            this.userManager.channelManager.updateConfig(this.config);
+            await this.userManager.channelManager.refreshChannels();
+        }
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *订阅源已移除*
+
+📺 *名称*：${removedSource.name}
+📡 *URL*：\`${removedSource.url}\`
+
+🔄 频道列表已自动刷新`, { parse_mode: 'Markdown' }, msg);
+        
+        this.logger.info(`管理员 ${msg.from.id} 移除了订阅源: ${removedSource.name}`);
+    }
+    
+    async toggleSource(msg, telegramBotManager, args, enable) {
+        if (args.length === 0) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin sources ${enable ? 'enable' : 'disable'} <索引>\`
+
+*示例*：
+\`/admin sources ${enable ? 'enable' : 'disable'} 2\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const index = parseInt(args[0]) - 1;
+        const sources = this.config.originalServer?.urls || [];
+        
+        if (isNaN(index) || index < 0 || index >= sources.length) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 无效的索引号`, {}, msg);
+            return;
+        }
+        
+        sources[index].enabled = enable;
+        
+        // 保存配置
+        const ConfigManager = require('../../utils/ConfigManager');
+        const configManager = new ConfigManager();
+        configManager.set('originalServer.urls', sources);
+        
+        // 更新ChannelManager的配置
+        if (this.userManager.channelManager) {
+            this.userManager.channelManager.updateConfig(this.config);
+            await this.userManager.channelManager.refreshChannels();
+        }
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *订阅源已${enable ? '启用' : '禁用'}*
+
+📺 *名称*：${sources[index].name}
+${enable ? '✅' : '❌'} *状态*：${enable ? '已启用' : '已禁用'}
+
+🔄 频道列表已自动刷新`, { parse_mode: 'Markdown' }, msg);
+        
+        this.logger.info(`管理员 ${msg.from.id} ${enable ? '启用' : '禁用'}了订阅源: ${sources[index].name}`);
+    }
+    
+    async renameSource(msg, telegramBotManager, args) {
+        if (args.length < 2) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ *参数不足*
+
+*使用方法*：
+\`/admin sources rename <索引> <新名称>\`
+
+*示例*：
+\`/admin sources rename 2 我的新源\``, { parse_mode: 'Markdown' }, msg);
+            return;
+        }
+        
+        const index = parseInt(args[0]) - 1;
+        const newName = args.slice(1).join(' ');
+        const sources = this.config.originalServer?.urls || [];
+        
+        if (isNaN(index) || index < 0 || index >= sources.length) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 无效的索引号`, {}, msg);
+            return;
+        }
+        
+        const oldName = sources[index].name;
+        sources[index].name = newName;
+        
+        // 保存配置
+        const ConfigManager = require('../../utils/ConfigManager');
+        const configManager = new ConfigManager();
+        configManager.set('originalServer.urls', sources);
+        
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `✅ *订阅源已重命名*
+
+📺 *旧名称*：${oldName}
+📺 *新名称*：${newName}`, { parse_mode: 'Markdown' }, msg);
+        
+        this.logger.info(`管理员 ${msg.from.id} 重命名订阅源: ${oldName} -> ${newName}`);
+    }
+    
+    async refreshSources(msg, telegramBotManager) {
+        await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `⏳ *正在刷新所有订阅源...*
+
+这可能需要一些时间，请稍候...`, {}, msg);
+        
+        try {
+            if (this.userManager.channelManager) {
+                await this.userManager.channelManager.refreshChannels();
+                
+                const serverInfo = this.userManager.channelManager.getServerInfo();
+                const sourceStats = serverInfo.sourceStats || {};
+                
+                let message = `✅ *订阅源刷新完成*\n\n`;
+                message += `📊 *总计*：\n`;
+                message += `• 总频道数：${serverInfo.channelCount}\n`;
+                message += `• 总分类数：${serverInfo.categoryCount}\n\n`;
+                message += `📋 *各源详情*：\n`;
+                
+                for (const [sourceId, stats] of Object.entries(sourceStats)) {
+                    if (stats.status === 'success') {
+                        message += `✅ ${stats.name}: ${stats.channelCount} 个频道\n`;
+                    } else {
+                        message += `❌ ${stats.name}: ${stats.error}\n`;
+                    }
+                }
+                
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, message, { parse_mode: 'Markdown' }, msg);
+            } else {
+                await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 频道管理器不可用`, {}, msg);
+            }
+        } catch (error) {
+            await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `❌ 刷新失败：${error.message}`, {}, msg);
+        }
     }
     
     async handleLimitExceeded(msg, telegramBotManager, args) {

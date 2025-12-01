@@ -15,6 +15,7 @@ class ChannelManager {
         this.categories = [];
         this.lastRefresh = 0;
         this.lastRefreshDiff = null;
+        this.sourceStats = {}; // 记录每个源的统计信息
         
         // 数据文件路径
         this.dataDir = path.join(__dirname, '../../data');
@@ -36,12 +37,10 @@ class ChannelManager {
     
     async loadChannels() {
         try {
-            // 检查是否有有效的URL配置
-            const hasValidUrl = this.config.originalServer?.url && 
-                               this.config.originalServer.url !== 'http://example.com' &&
-                               this.config.originalServer.url !== '';
+            // 获取所有有效的订阅源
+            const sources = this.getEnabledSources();
             
-            if (hasValidUrl) {
+            if (sources.length > 0) {
                 // 如果有有效URL，优先从服务器刷新
                 await this.refreshChannels();
                 return;
@@ -57,6 +56,7 @@ class ChannelManager {
                     this.channels = cacheData.channels || [];
                     this.categories = cacheData.categories || [];
                     this.lastRefresh = cacheData.timestamp;
+                    this.sourceStats = cacheData.sourceStats || {};
                     this.logger.info(`Loaded ${this.channels.length} channels from cache`);
                     return;
                 }
@@ -71,25 +71,120 @@ class ChannelManager {
         }
     }
     
+    // 获取所有启用的订阅源
+    getEnabledSources() {
+        const sources = [];
+        
+        // 检查新格式的 urls 数组
+        if (this.config.originalServer?.urls && Array.isArray(this.config.originalServer.urls)) {
+            this.config.originalServer.urls.forEach((source, index) => {
+                if (source.enabled !== false && source.url && source.url !== 'http://example.com') {
+                    sources.push({
+                        id: `source_${index}`,
+                        url: source.url,
+                        name: source.name || `Source ${index + 1}`,
+                        enabled: true
+                    });
+                }
+            });
+        }
+        
+        // 向后兼容：检查旧格式的单个 url
+        if (sources.length === 0 && this.config.originalServer?.url && 
+            this.config.originalServer.url !== 'http://example.com' &&
+            this.config.originalServer.url !== '') {
+            sources.push({
+                id: 'source_0',
+                url: this.config.originalServer.url,
+                name: 'Default Source',
+                enabled: true
+            });
+        }
+        
+        return sources;
+    }
+    
     async refreshChannels() {
         try {
-            this.logger.info('Refreshing channels from original server...');
+            this.logger.info('Refreshing channels from original servers...');
             // 在刷新前保留旧频道用于对比
             const previousChannels = Array.isArray(this.channels) ? [...this.channels] : [];
 
-            const response = await axios.get(
-                `${this.config.originalServer.url}${this.config.originalServer.m3uPath}`,
-                {
-                    timeout: this.config.originalServer.timeout || 10000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                }
-            );
+            const sources = this.getEnabledSources();
             
-            const channelData = this.parseM3UContent(response.data);
-            this.channels = channelData.channels;
-            this.categories = channelData.categories;
+            if (sources.length === 0) {
+                this.logger.warn('No enabled sources found');
+                this.createSampleChannels();
+                return;
+            }
+
+            // 从所有源并行加载频道
+            const allChannels = [];
+            const allCategories = new Set();
+            this.sourceStats = {};
+            let nextChannelId = 1;
+
+            // 使用 Promise.allSettled 来处理多个源，即使有些失败也继续
+            const results = await Promise.allSettled(
+                sources.map(source => this.fetchChannelsFromSource(source))
+            );
+
+            results.forEach((result, index) => {
+                const source = sources[index];
+                
+                if (result.status === 'fulfilled' && result.value) {
+                    const { channels, categories } = result.value;
+                    
+                    // 为每个频道分配唯一ID并标记来源
+                    channels.forEach(channel => {
+                        channel.id = nextChannelId++;
+                        channel.sourceId = source.id;
+                        channel.sourceName = source.name;
+                        allChannels.push(channel);
+                    });
+                    
+                    // 合并分类
+                    categories.forEach(cat => allCategories.add(cat));
+                    
+                    // 记录源统计
+                    this.sourceStats[source.id] = {
+                        name: source.name,
+                        url: source.url,
+                        channelCount: channels.length,
+                        categoryCount: categories.length,
+                        lastRefresh: Date.now(),
+                        status: 'success'
+                    };
+                    
+                    this.logger.success(`✅ Loaded ${channels.length} channels from ${source.name}`);
+                } else {
+                    // 记录失败的源
+                    this.sourceStats[source.id] = {
+                        name: source.name,
+                        url: source.url,
+                        channelCount: 0,
+                        categoryCount: 0,
+                        lastRefresh: Date.now(),
+                        status: 'failed',
+                        error: result.reason?.message || 'Unknown error'
+                    };
+                    
+                    this.logger.error(`❌ Failed to load from ${source.name}: ${result.reason?.message}`);
+                }
+            });
+
+            if (allChannels.length === 0) {
+                this.logger.warn('No channels loaded from any source');
+                if (previousChannels.length > 0) {
+                    this.logger.info('Keeping previous channels');
+                    return;
+                }
+                this.createSampleChannels();
+                return;
+            }
+
+            this.channels = allChannels;
+            this.categories = Array.from(allCategories).sort();
             this.lastRefresh = Date.now();
 
             // 计算刷新前后的差异
@@ -105,7 +200,7 @@ class ChannelManager {
                 this.saveChannelsToCache();
             }
             
-            this.logger.success(`Successfully loaded ${this.channels.length} channels from ${this.categories.length} categories`);
+            this.logger.success(`✅ Successfully loaded ${this.channels.length} channels from ${sources.length} source(s), ${this.categories.length} categories`);
             if (this.lastRefreshDiff) {
                 const { added, removed, updated, unchanged } = this.lastRefreshDiff;
                 this.logger.info(`Channel diff - added: ${added.length}, removed: ${removed.length}, updated: ${updated.length}, unchanged: ${unchanged.length}`);
@@ -117,6 +212,28 @@ class ChannelManager {
             if (this.channels.length === 0) {
                 this.createSampleChannels();
             }
+        }
+    }
+
+    // 从单个源获取频道
+    async fetchChannelsFromSource(source) {
+        try {
+            const fullUrl = `${source.url}${this.config.originalServer.m3uPath || ''}`;
+            
+            this.logger.info(`Fetching from ${source.name}: ${fullUrl}`);
+            
+            const response = await axios.get(fullUrl, {
+                timeout: this.config.originalServer.timeout || 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+            
+            const channelData = this.parseM3UContent(response.data);
+            return channelData;
+        } catch (error) {
+            this.logger.error(`Error fetching from ${source.name}:`, error.message);
+            throw error;
         }
     }
 
@@ -282,7 +399,8 @@ class ChannelManager {
             const cacheData = {
                 channels: this.channels,
                 categories: this.categories,
-                timestamp: this.lastRefresh
+                timestamp: this.lastRefresh,
+                sourceStats: this.sourceStats
             };
             
             fs.writeFileSync(this.channelsFile, JSON.stringify(cacheData, null, 2));
@@ -303,7 +421,9 @@ class ChannelManager {
                 logo: '',
                 tvgId: 'sample1',
                 tvgName: 'Sample Channel 1',
-                url: 'http://example.com/stream1.m3u8'
+                url: 'http://example.com/stream1.m3u8',
+                sourceId: 'sample_source',
+                sourceName: 'Sample Source'
             },
             {
                 id: 2,
@@ -312,12 +432,24 @@ class ChannelManager {
                 logo: '',
                 tvgId: 'sample2',
                 tvgName: 'Sample Channel 2',
-                url: 'http://example.com/stream2.m3u8'
+                url: 'http://example.com/stream2.m3u8',
+                sourceId: 'sample_source',
+                sourceName: 'Sample Source'
             }
         ];
         
         this.categories = ['General'];
         this.lastRefresh = Date.now();
+        this.sourceStats = {
+            'sample_source': {
+                name: 'Sample Source',
+                url: 'http://example.com',
+                channelCount: 2,
+                categoryCount: 1,
+                lastRefresh: Date.now(),
+                status: 'success'
+            }
+        };
     }
     
     getChannels(categoryFilter = null) {
@@ -393,8 +525,12 @@ class ChannelManager {
     }
 
     getServerInfo() {
+        const sources = this.getEnabledSources();
+        
         return {
-            url: this.config.originalServer.url,
+            url: this.config.originalServer.url, // 向后兼容
+            sources: sources,
+            sourceStats: this.sourceStats,
             lastRefresh: this.lastRefresh,
             channelCount: this.channels.length,
             categoryCount: this.categories.length,
