@@ -1,0 +1,75 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0",
+    "externalUrl": ""
+  },
+  "originalServer": {
+    "url": "https://judy.diver.eu.org/m3u/judy_neibu.m3u",
+    "m3uPath": "",
+    "timeout": 10000,
+    "autoRefreshInterval": 7200000,
+    "enableAutoRefresh": true
+  },
+  "telegram": {
+    "botToken": "8168939055:AAH4grOEldO9w2I6ybWfKdZAtWKsWjzT8zA",
+    "groupId": "-1002794044477,-1002627557056,",
+    "adminUserId": "5711611599",
+    "adminUserIds": [
+      "5711611599"
+    ],
+    "tokenExpiry": 600000,
+    "maxTokensPerUser": 1,
+    "tokenGenerationPeriod": 7200000,
+    "blacklist": []
+  },
+  "users": {},
+  "security": {
+    "connectionTimeout": 60000,
+    "cleanupInterval": 20000,
+    "enableLogging": true,
+    "allowedIPs": [],
+    "blockedIPs": [],
+    "enableIPBinding": false,
+    "redirectTokenExpiry": 7200000,
+    "maxTokenUsage": 3
+  },
+  "features": {
+    "enableAdmin": true,
+    "enableStatus": true,
+    "enableEPG": true,
+    "cacheChannels": true,
+    "channelRefreshInterval": 3600000,
+    "enableTelegramBot": true,
+    "filterChannels": {
+      "enabled": true,
+      "blacklistKeywords": [],
+      "whitelistKeywords": []
+    }
+  },
+  "playlist": {
+    "refreshLimitPeriod": 3600000,
+    "maxRefreshesBeforeExpiry": 10,
+    "maxSimultaneousPlaylists": 5,
+    "defaultLinkExpiry": 86400000,
+    "enablePersistentStorage": true,
+    "persistentStorageCleanupInterval": 86400000,
+    "enablePermanentUsers": false,
+    "userLinkExpiry": 259200000,
+    "expiryNotificationHours": [
+      24,
+      12,
+      1
+    ],
+    "streamInactiveThreshold": 300000,
+    "maxHourlyRefreshLimit": 10
+  },
+  
+  "userAgent": {
+    "enabled": false,
+    "defaultUserAgent": "judy/8.8.8",
+    "channels": {},
+    "enforceValidation": true
+  }
+  
+}
