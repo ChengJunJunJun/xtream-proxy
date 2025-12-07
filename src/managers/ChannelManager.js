@@ -286,20 +286,43 @@ class ChannelManager {
         const categories = new Set();
         
         let currentChannel = null;
+        let kodiProps = [];
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             
             if (line.startsWith('#EXTINF:')) {
+                // 如果有上一个频道还没有URL，先清理
+                if (currentChannel) {
+                    kodiProps = [];
+                }
                 currentChannel = this.parseExtinfLine(line);
                 if (currentChannel.category) {
                     categories.add(currentChannel.category);
                 }
+                // 重置KODIPROP收集
+                kodiProps = [];
+            } else if (line.startsWith('#KODIPROP:')) {
+                // 收集KODIPROP指令
+                if (currentChannel) {
+                    kodiProps.push(line);
+                }
+            } else if (line.startsWith('#EXTVLCOPT:')) {
+                // 支持EXTVLCOPT指令（类似KODIPROP）
+                if (currentChannel) {
+                    kodiProps.push(line);
+                }
             } else if (line && !line.startsWith('#') && currentChannel) {
+                // 这是频道URL
                 currentChannel.url = line;
                 currentChannel.id = channels.length + 1;
+                // 保存KODIPROP指令（如果有）
+                if (kodiProps.length > 0) {
+                    currentChannel.kodiProps = [...kodiProps];
+                }
                 channels.push(currentChannel);
                 currentChannel = null;
+                kodiProps = [];
             }
         }
         

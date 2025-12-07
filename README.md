@@ -19,6 +19,7 @@
 
 ### 📺 IPTV功能
 - **M3U播放列表**：支持标准M3U和M3U Plus格式
+- **KODIPROP 支持**：完整支持 KODIPROP 和 EXTVLCOPT 指令，兼容 DRM 内容
 - **多订阅源支持**：支持同时配置多个M3U订阅源，自动合并频道
 - **频道管理**：自动获取和管理IPTV频道
 - **并发控制**：限制用户同时播放的设备数量
@@ -387,6 +388,25 @@ docker-compose up -d
 - ✅ 自动过期提醒推送
 - ✅ 无需IP验证的链接生成
 - ✅ 完整的中文界面支持
+- ✅ **KODIPROP/EXTVLCOPT 指令支持** - 完整支持 DRM 内容和高级流配置
+
+### KODIPROP 功能
+本项目现在完全支持包含 `#KODIPROP` 和 `#EXTVLCOPT` 指令的 M3U 播放列表：
+- 自动识别并保留所有 KODIPROP 指令
+- 支持 MPEG-DASH、DRM clearkey 等高级流配置
+- 兼容 Kodi、TiviMate、Perfect Player 等播放器
+- 完全透明处理，无需额外配置
+
+**示例支持的订阅格式：**
+```m3u
+#EXTINF:-1 tvg-id="MytvSuper" tvg-name="SUPER识食",SUPER識食
+#KODIPROP:inputstream.adaptive.manifest_type=mpd
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=2370118ce3d6fafe17502b0176abf9ae:357c7b5a9d01c25d8e30e46cc396de08
+https://example.com/stream.mpd
+```
+
+详细文档请参考：[KODIPROP 支持说明](doc/KODIPROP_SUPPORT.md)
 
 ## 🤝 贡献指南
 

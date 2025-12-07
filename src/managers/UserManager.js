@@ -447,6 +447,14 @@ class UserManager {
             const encryptedUrl = this.generateEncryptedChannelUrl(channel.url, username, channel.id, clientIP);
             
             playlist += `#EXTINF:-1 tvg-id="${channel.id}" tvg-name="${channel.name}" tvg-logo="${channel.logo}" group-title="${channel.category}",${channel.name}\n`;
+            
+            // 添加KODIPROP或EXTVLCOPT指令（如果有）
+            if (channel.kodiProps && Array.isArray(channel.kodiProps)) {
+                channel.kodiProps.forEach(prop => {
+                    playlist += `${prop}\n`;
+                });
+            }
+            
             playlist += `${encryptedUrl}\n`;
         });
         
@@ -472,6 +480,14 @@ class UserManager {
             ];
             
             playlist += `${extinf} ${attributes.join(' ')},${channel.name}\n`;
+            
+            // 添加KODIPROP或EXTVLCOPT指令（如果有）
+            if (channel.kodiProps && Array.isArray(channel.kodiProps)) {
+                channel.kodiProps.forEach(prop => {
+                    playlist += `${prop}\n`;
+                });
+            }
+            
             playlist += `${encryptedUrl}\n`;
         });
         
