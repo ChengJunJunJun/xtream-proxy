@@ -134,7 +134,14 @@ class AdminHandler {
     
     async handleChangeM3U(msg, telegramBotManager, args) {
         if (args.length === 0) {
-            const currentUrl = this.config.originalServer?.url || '未设置';
+            // 获取当前链接：优先显示urls数组中的第一个，否则显示url字段
+            let currentUrl = '未设置';
+            if (this.config.originalServer?.urls && this.config.originalServer.urls.length > 0) {
+                currentUrl = this.config.originalServer.urls[0].url;
+            } else if (this.config.originalServer?.url) {
+                currentUrl = this.config.originalServer.url;
+            }
+            
             const channelCount = this.userManager.channelManager ? 
                 this.userManager.channelManager.getChannelCount() : 0;
             
@@ -168,7 +175,13 @@ class AdminHandler {
             return;
         }
 
-        const oldUrl = this.config.originalServer?.url || '未设置';
+        // 获取旧链接：优先显示urls数组中的第一个，否则显示url字段
+        let oldUrl = '未设置';
+        if (this.config.originalServer?.urls && this.config.originalServer.urls.length > 0) {
+            oldUrl = this.config.originalServer.urls[0].url;
+        } else if (this.config.originalServer?.url) {
+            oldUrl = this.config.originalServer.url;
+        }
         
         try {
             await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `�� *正在更新M3U订阅链接...*
@@ -330,9 +343,20 @@ class AdminHandler {
     }
     
     async listSources(msg, telegramBotManager) {
-        const sources = this.config.originalServer?.urls || [];
+        // 获取订阅源：支持新格式(urls数组)和旧格式(url字符串)
+        let sources = this.config.originalServer?.urls || [];
         const serverInfo = this.userManager.channelManager?.getServerInfo?.() || {};
         const sourceStats = serverInfo.sourceStats || {};
+        
+        // 如果没有urls数组，检查是否有旧格式的url
+        if (sources.length === 0 && this.config.originalServer?.url) {
+            // 将旧格式转换为新格式显示
+            sources = [{
+                url: this.config.originalServer.url,
+                name: '默认订阅源',
+                enabled: true
+            }];
+        }
         
         if (sources.length === 0) {
             await telegramBotManager.sendAutoDeleteMessage(msg.chat.id, `📺 *订阅源管理*
